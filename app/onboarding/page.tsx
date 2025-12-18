@@ -309,7 +309,7 @@ export default function OnboardingPage() {
             </div>
 
             <p className="text-sm text-gray-500">
-              You can skip this if you don't have any restrictions.
+              You can skip this if you don&apos;t have any restrictions.
             </p>
           </div>
         );
@@ -319,7 +319,7 @@ export default function OnboardingPage() {
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-900">Any family favorites?</h2>
             <p className="text-gray-600">
-              Are there meals you make regularly? (Optional - we'll include these in your plans)
+              Are there meals you make regularly? (Optional - we&apos;ll include these in your plans)
             </p>
 
             <div className="space-y-3">
@@ -340,7 +340,7 @@ export default function OnboardingPage() {
             </div>
 
             <p className="text-sm text-gray-500">
-              Don't worry, you can always add or change these later.
+              Don&apos;t worry, you can always add or change these later.
             </p>
           </div>
         );

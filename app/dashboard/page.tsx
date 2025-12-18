@@ -107,14 +107,14 @@ export default function DashboardPage() {
 
         {/* Current week placeholder */}
         <div className="bg-white rounded-lg shadow-sm p-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">This Week's Plan</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">This Week&apos;s Plan</h3>
           <div className="text-center py-12 text-gray-500">
-            <p className="mb-4">You don't have a meal plan for this week yet.</p>
+            <p className="mb-4">You don&apos;t have a meal plan for this week yet.</p>
             <button
               className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
               onClick={() => alert('Meal plan generation coming soon!')}
             >
-              Generate This Week's Plan
+              Generate This Week&apos;s Plan
             </button>
           </div>
         </div>

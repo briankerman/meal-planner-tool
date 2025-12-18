@@ -24,7 +24,7 @@ export default function Home() {
           </h2>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
             AI-powered meal plans that learn what your family loves.
-            Generate a week's worth of dinners in seconds, complete with grocery lists.
+            Generate a week&apos;s worth of dinners in seconds, complete with grocery lists.
           </p>
           <Link
             href="/signup"
@@ -42,7 +42,7 @@ export default function Home() {
               Smart Meal Plans
             </h3>
             <p className="text-gray-600">
-              AI generates personalized weekly meal plans based on your family's preferences,
+              AI generates personalized weekly meal plans based on your family&apos;s preferences,
               dietary needs, and cooking style.
             </p>
           </div>
