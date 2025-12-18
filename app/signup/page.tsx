@@ -43,7 +43,8 @@ export default function SignupPage() {
         router.push('/onboarding');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to create account');
+      console.error('Signup error:', err);
+      setError(err.message || err.toString() || 'Failed to create account');
     } finally {
       setLoading(false);
     }
