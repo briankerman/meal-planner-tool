@@ -1,62 +1,33 @@
-# Simpler Sundays - Database Schema
+-- Simpler Sundays Database Setup
+-- Copy and paste this entire file into Supabase SQL Editor
 
-## Setup Instructions
-
-1. Go to your Supabase project: https://supabase.com/dashboard
-2. Navigate to SQL Editor
-3. Run the SQL commands below to create your tables
-
-## Core Tables
-
-### 1. User Profiles (extends Supabase Auth)
-
-```sql
+-- 1. User Profiles
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   email TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-  
-  -- Onboarding complete flag
   onboarding_completed BOOLEAN DEFAULT false,
-  
-  -- Household info
   num_adults INTEGER DEFAULT 2,
   num_children INTEGER DEFAULT 0,
-  child_age_ranges TEXT[], -- ['toddler', 'kid', 'teen']
-  
-  -- Weekly routine
-  shopping_day TEXT DEFAULT 'Saturday', -- Day of week
+  child_age_ranges TEXT[],
+  shopping_day TEXT DEFAULT 'Saturday',
   dinner_days_per_week INTEGER DEFAULT 5,
   plans_leftovers BOOLEAN DEFAULT true,
-  
-  -- Food preferences
-  cuisine_preferences TEXT[], -- ['italian', 'mexican', 'asian', etc.]
-  meal_style_preferences TEXT[], -- ['quick', 'slow-cooker', 'one-pan', etc.]
-  
-  -- Restrictions
-  allergies TEXT[], -- ['nuts', 'dairy', 'gluten', etc.]
-  
-  -- Manual staples (free text meals they always want)
-  staple_meals TEXT[] -- ['Taco Tuesday', 'Pasta night', etc.]
+  cuisine_preferences TEXT[],
+  meal_style_preferences TEXT[],
+  allergies TEXT[],
+  staple_meals TEXT[]
 );
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
-CREATE POLICY "Users can view own profile"
-  ON profiles FOR SELECT
-  USING (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile"
-  ON profiles FOR UPDATE
-  USING (auth.uid() = id);
-
--- Auto-create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email)
-  VALUES (new.id, new.email);
+  INSERT INTO public.profiles (id, email) VALUES (new.id, new.email);
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -64,11 +35,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-```
 
-### 2. Meal Plans
-
-```sql
+-- 2. Meal Plans
 CREATE TABLE meal_plans (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
@@ -77,188 +45,94 @@ CREATE TABLE meal_plans (
   is_locked BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
-  
-  -- Weekly context (user input before generation)
-  nights_out TEXT[], -- ['Monday', 'Friday']
-  special_plans JSONB, -- {day: 'Monday', type: 'reservation'}
-  weekly_preferences TEXT[] -- ['no italian', 'extra quick meals']
+  nights_out TEXT[],
+  special_plans JSONB,
+  weekly_preferences TEXT[]
 );
 
 ALTER TABLE meal_plans ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can manage own meal plans"
-  ON meal_plans FOR ALL
-  USING (auth.uid() = user_id);
-
+CREATE POLICY "Users can manage own meal plans" ON meal_plans FOR ALL USING (auth.uid() = user_id);
 CREATE INDEX idx_meal_plans_user_week ON meal_plans(user_id, week_start_date);
-```
 
-### 3. Meals
-
-```sql
+-- 3. Meals
 CREATE TABLE meals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
   meal_plan_id UUID REFERENCES meal_plans ON DELETE CASCADE,
-  
-  -- Meal info
   name TEXT NOT NULL,
   description TEXT,
-  day_of_week TEXT NOT NULL, -- 'Monday', 'Tuesday', etc.
+  day_of_week TEXT NOT NULL,
   date DATE NOT NULL,
-  
-  -- Recipe
-  ingredients JSONB NOT NULL, -- [{name, amount, unit, category}]
+  ingredients JSONB NOT NULL,
   instructions TEXT[],
   prep_time_minutes INTEGER,
   cook_time_minutes INTEGER,
-  
-  -- Tags
-  tags TEXT[], -- ['quick', 'kid-friendly', 'leftover-friendly']
-  cuisine TEXT, -- 'italian', 'mexican', etc.
-  
-  -- User feedback
+  tags TEXT[],
+  cuisine TEXT,
   is_liked BOOLEAN DEFAULT NULL,
   is_saved BOOLEAN DEFAULT false,
   user_notes TEXT,
-  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
 ALTER TABLE meals ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can manage own meals"
-  ON meals FOR ALL
-  USING (auth.uid() = user_id);
-
+CREATE POLICY "Users can manage own meals" ON meals FOR ALL USING (auth.uid() = user_id);
 CREATE INDEX idx_meals_user_plan ON meals(user_id, meal_plan_id);
 CREATE INDEX idx_meals_user_date ON meals(user_id, date);
 CREATE INDEX idx_meals_saved ON meals(user_id, is_saved) WHERE is_saved = true;
-```
 
-### 4. Saved Recipes
-
-```sql
+-- 4. Saved Recipes
 CREATE TABLE saved_recipes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-  
-  -- Recipe info
   name TEXT NOT NULL,
   description TEXT,
-  source TEXT, -- 'ai-generated', 'user-entered'
-  
+  source TEXT,
   ingredients JSONB NOT NULL,
   instructions TEXT[],
   prep_time_minutes INTEGER,
   cook_time_minutes INTEGER,
-  
   tags TEXT[],
   cuisine TEXT,
-  
   times_used INTEGER DEFAULT 0,
   last_used_date DATE,
-  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
 ALTER TABLE saved_recipes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own saved recipes" ON saved_recipes FOR ALL USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can manage own saved recipes"
-  ON saved_recipes FOR ALL
-  USING (auth.uid() = user_id);
-```
-
-### 5. Grocery Lists
-
-```sql
+-- 5. Grocery Lists
 CREATE TABLE grocery_lists (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
   meal_plan_id UUID REFERENCES meal_plans ON DELETE CASCADE NOT NULL,
-  
-  items JSONB NOT NULL, -- [{name, amount, unit, category, checked}]
-  
+  items JSONB NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
 ALTER TABLE grocery_lists ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own grocery lists" ON grocery_lists FOR ALL USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can manage own grocery lists"
-  ON grocery_lists FOR ALL
-  USING (auth.uid() = user_id);
-```
-
-### 6. User Preferences History (for learning)
-
-```sql
+-- 6. Preference Signals
 CREATE TABLE preference_signals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
   meal_id UUID REFERENCES meals ON DELETE SET NULL,
-  
-  signal_type TEXT NOT NULL, -- 'like', 'dislike', 'skip', 'save', 'repeat'
+  signal_type TEXT NOT NULL,
   meal_name TEXT,
   cuisine TEXT,
   tags TEXT[],
-  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
 ALTER TABLE preference_signals ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can manage own signals"
-  ON preference_signals FOR ALL
-  USING (auth.uid() = user_id);
-
+CREATE POLICY "Users can manage own signals" ON preference_signals FOR ALL USING (auth.uid() = user_id);
 CREATE INDEX idx_signals_user_type ON preference_signals(user_id, signal_type);
-```
 
-## Indexes for Performance
-
-```sql
+-- Additional Indexes
 CREATE INDEX idx_profiles_user_id ON profiles(id);
 CREATE INDEX idx_meal_plans_user_locked ON meal_plans(user_id, is_locked);
 CREATE INDEX idx_meals_liked ON meals(user_id, is_liked) WHERE is_liked = true;
-```
-
-## Helper Functions
-
-### Get current week's meal plan
-
-```sql
-CREATE OR REPLACE FUNCTION get_current_week_plan(user_uuid UUID)
-RETURNS TABLE (
-  plan_id UUID,
-  meals JSONB
-) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT 
-    mp.id,
-    jsonb_agg(
-      jsonb_build_object(
-        'id', m.id,
-        'name', m.name,
-        'day', m.day_of_week,
-        'date', m.date,
-        'tags', m.tags,
-        'is_liked', m.is_liked
-      ) ORDER BY m.date
-    ) as meals
-  FROM meal_plans mp
-  LEFT JOIN meals m ON m.meal_plan_id = mp.id
-  WHERE mp.user_id = user_uuid
-    AND mp.week_start_date <= CURRENT_DATE
-    AND mp.week_end_date >= CURRENT_DATE
-  GROUP BY mp.id
-  LIMIT 1;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-```
-
-## Initial Setup Complete
-
-Once you run this SQL, your database will be ready for Simpler Sundays!
