@@ -14,5 +14,11 @@ export function createClient() {
 
   console.log('Supabase URL:', supabaseUrl);
 
-  return createSupabaseClient(supabaseUrl, supabaseKey);
+  return createSupabaseClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    }
+  });
 }

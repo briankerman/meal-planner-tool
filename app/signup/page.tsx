@@ -31,14 +31,26 @@ export default function SignupPage() {
 
     try {
       const supabase = createClient();
+      console.log('Supabase client created, attempting signup...');
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       });
 
-      if (signUpError) throw signUpError;
+      console.log('Signup response:', { data, error: signUpError });
+
+      if (signUpError) {
+        console.error('SignUp error details:', {
+          message: signUpError.message,
+          status: signUpError.status,
+          name: signUpError.name
+        });
+        throw signUpError;
+      }
 
       if (data.user) {
+        console.log('User created successfully:', data.user.id);
         // Redirect to onboarding
         router.push('/onboarding');
       }
