@@ -108,7 +108,7 @@ export default function DashboardPage() {
               <div>
                 <div className="text-sm font-medium text-gray-700">Favorite Cuisines</div>
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {profile.cuisine_preferences.map(cuisine => (
+                  {profile.cuisine_preferences.map((cuisine: string) => (
                     <span
                       key={cuisine}
                       className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
@@ -124,7 +124,7 @@ export default function DashboardPage() {
               <div>
                 <div className="text-sm font-medium text-gray-700">Meal Styles</div>
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {profile.meal_style_preferences.map(style => (
+                  {profile.meal_style_preferences.map((style: string) => (
                     <span
                       key={style}
                       className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm"
@@ -140,7 +140,7 @@ export default function DashboardPage() {
               <div>
                 <div className="text-sm font-medium text-gray-700">Allergies & Restrictions</div>
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {profile.allergies.map(allergy => (
+                  {profile.allergies.map((allergy: string) => (
                     <span
                       key={allergy}
                       className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm"
@@ -156,7 +156,7 @@ export default function DashboardPage() {
               <div>
                 <div className="text-sm font-medium text-gray-700">Family Favorites</div>
                 <ul className="mt-2 space-y-1">
-                  {profile.staple_meals.map((meal, idx) => (
+                  {profile.staple_meals.map((meal: string, idx: number) => (
                     <li key={idx} className="text-gray-600">• {meal}</li>
                   ))}
                 </ul>
