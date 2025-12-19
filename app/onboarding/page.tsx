@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 
 type Step = 'household' | 'routine' | 'preferences' | 'restrictions' | 'staples';
 
@@ -16,8 +15,6 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>('household');
   const [loading, setLoading] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-
   // Form state
   const [numAdults, setNumAdults] = useState(2);
   const [numChildren, setNumChildren] = useState(0);
@@ -29,19 +26,6 @@ export default function OnboardingPage() {
   const [mealStylePreferences, setMealStylePreferences] = useState<string[]>([]);
   const [allergies, setAllergies] = useState<string[]>([]);
   const [stapleMeals, setStapleMeals] = useState<string[]>(['', '', '']);
-
-  useEffect(() => {
-    async function getUser() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserId(user.id);
-      } else {
-        router.push('/login');
-      }
-    }
-    getUser();
-  }, [router]);
 
   const steps: Step[] = ['household', 'routine', 'preferences', 'restrictions', 'staples'];
   const stepIndex = steps.indexOf(currentStep);
@@ -58,31 +42,24 @@ export default function OnboardingPage() {
   }
 
   async function handleComplete() {
-    if (!userId) return;
-
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          num_adults: numAdults,
-          num_children: numChildren,
-          child_age_ranges: childAgeRanges.length > 0 ? childAgeRanges : null,
-          shopping_day: shoppingDay,
-          dinner_days_per_week: dinnerDaysPerWeek,
-          plans_leftovers: plansLeftovers,
-          cuisine_preferences: cuisinePreferences.length > 0 ? cuisinePreferences : null,
-          meal_style_preferences: mealStylePreferences.length > 0 ? mealStylePreferences : null,
-          allergies: allergies.length > 0 ? allergies : null,
-          staple_meals: stapleMeals.filter(m => m.trim() !== ''),
-          onboarding_completed: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
+      // Store in localStorage (no auth for now)
+      const preferences = {
+        num_adults: numAdults,
+        num_children: numChildren,
+        child_age_ranges: childAgeRanges.length > 0 ? childAgeRanges : null,
+        shopping_day: shoppingDay,
+        dinner_days_per_week: dinnerDaysPerWeek,
+        plans_leftovers: plansLeftovers,
+        cuisine_preferences: cuisinePreferences.length > 0 ? cuisinePreferences : null,
+        meal_style_preferences: mealStylePreferences.length > 0 ? mealStylePreferences : null,
+        allergies: allergies.length > 0 ? allergies : null,
+        staple_meals: stapleMeals.filter(m => m.trim() !== ''),
+        onboarding_completed: true
+      };
 
-      if (error) throw error;
-
+      localStorage.setItem('meal_planner_preferences', JSON.stringify(preferences));
       router.push('/dashboard');
     } catch (err) {
       console.error('Error saving profile:', err);

@@ -2,48 +2,29 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import type { Profile } from '@/lib/types/database';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadProfile() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.push('/login');
-        return;
+    // Load from localStorage (no auth for now)
+    const stored = localStorage.getItem('meal_planner_preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      setProfile(prefs);
+      if (!prefs.onboarding_completed) {
+        router.push('/onboarding');
       }
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        console.error('Error loading profile:', error);
-      } else {
-        setProfile(data);
-        if (!data.onboarding_completed) {
-          router.push('/onboarding');
-        }
-      }
-
-      setLoading(false);
+    } else {
+      router.push('/onboarding');
     }
-
-    loadProfile();
+    setLoading(false);
   }, [router]);
 
-  async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+  function handleSignOut() {
+    localStorage.removeItem('meal_planner_preferences');
     router.push('/');
   }
 
@@ -76,7 +57,7 @@ export default function DashboardPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-gray-900">
-            Welcome back, {profile?.email?.split('@')[0]}!
+            Welcome back!
           </h2>
           <p className="text-gray-600 mt-1">Ready to plan your week?</p>
         </div>

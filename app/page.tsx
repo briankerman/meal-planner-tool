@@ -27,7 +27,7 @@ export default function Home() {
             Generate a week&apos;s worth of dinners in seconds, complete with grocery lists.
           </p>
           <Link
-            href="/signup"
+            href="/onboarding"
             className="inline-block px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition text-lg"
           >
             Get Started Free
