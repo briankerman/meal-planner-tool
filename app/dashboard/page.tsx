@@ -7,6 +7,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mealPlan, setMealPlan] = useState<any | null>(null);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     // Load from localStorage (no auth for now)
@@ -20,8 +22,39 @@ export default function DashboardPage() {
     } else {
       router.push('/onboarding');
     }
+
+    // Load existing meal plan if any
+    const storedPlan = localStorage.getItem('current_meal_plan');
+    if (storedPlan) {
+      setMealPlan(JSON.parse(storedPlan));
+    }
+
     setLoading(false);
   }, [router]);
+
+  async function generateMealPlan() {
+    setGenerating(true);
+    try {
+      const response = await fetch('/api/generate-meal-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate meal plan');
+      }
+
+      const plan = await response.json();
+      setMealPlan(plan);
+      localStorage.setItem('current_meal_plan', JSON.stringify(plan));
+    } catch (error) {
+      console.error('Error generating meal plan:', error);
+      alert('Failed to generate meal plan. Please try again.');
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   function handleSignOut() {
     localStorage.removeItem('meal_planner_preferences');
@@ -86,18 +119,57 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Current week placeholder */}
+        {/* Current week */}
         <div className="bg-white rounded-lg shadow-sm p-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">This Week&apos;s Plan</h3>
-          <div className="text-center py-12 text-gray-500">
-            <p className="mb-4">You don&apos;t have a meal plan for this week yet.</p>
-            <button
-              className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
-              onClick={() => alert('Meal plan generation coming soon!')}
-            >
-              Generate This Week&apos;s Plan
-            </button>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">This Week&apos;s Plan</h3>
+            {mealPlan && (
+              <button
+                onClick={generateMealPlan}
+                disabled={generating}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+              >
+                {generating ? 'Regenerating...' : 'Regenerate'}
+              </button>
+            )}
           </div>
+
+          {!mealPlan ? (
+            <div className="text-center py-12 text-gray-500">
+              <p className="mb-4">You don&apos;t have a meal plan for this week yet.</p>
+              <button
+                className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50"
+                onClick={generateMealPlan}
+                disabled={generating}
+              >
+                {generating ? 'Generating...' : 'Generate This Week&apos;s Plan'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {mealPlan.meals?.map((meal: any, idx: number) => (
+                <div key={idx} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="text-sm font-medium text-gray-500">{meal.day}</div>
+                      <h4 className="text-lg font-semibold text-gray-900">{meal.name}</h4>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {meal.prepTime} prep + {meal.cookTime} cook
+                    </div>
+                  </div>
+                  <p className="text-gray-600 text-sm mb-3">{meal.description}</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {meal.tags?.map((tag: string) => (
+                      <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Preferences summary */}
