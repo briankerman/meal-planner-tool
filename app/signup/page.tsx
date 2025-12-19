@@ -30,12 +30,14 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // Direct API call to bypass buggy Supabase client
+      const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2bGJ2cG5vYm56emNmZ29zcmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwODEwMjcsImV4cCI6MjA4MTY1NzAyN30.Qxmr-vABizZqNHiyk7pzzRW6BIrS--q2UA048ZHpe3o';
+
       const response = await fetch('https://dvlbvpnobhzzcfgosrbw.supabase.co/auth/v1/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2bGJ2cG5vYm56emNmZ29zcmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwODEwMjcsImV4cCI6MjA4MTY1NzAyN30.Qxmr-vABizZqNHiyk7pzzRW6BIrS--q2UA048ZHpe3o'
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`
         },
         body: JSON.stringify({ email, password })
       });
