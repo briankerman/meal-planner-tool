@@ -248,7 +248,7 @@ export default function DashboardPage() {
             ))}
           </div>
           <p className="text-xs text-gray-500 mt-3">
-            Select which days you'll be cooking vs. going out, having leftovers, etc.
+            Select which days you&apos;ll be cooking vs. going out, having leftovers, etc.
           </p>
         </div>
 
