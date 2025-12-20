@@ -464,7 +464,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <ul className="space-y-1">
-                    {selectedMeal.ingredients?.map((ing: any, idx: number) => (
+                    {(selectedMeal.ingredients as any[])?.map((ing: any, idx: number) => (
                       <li key={idx} className="text-gray-700">
                         • {typeof ing === 'string' ? ing : `${ing.amount} ${ing.unit} ${ing.name}`}
                       </li>
