@@ -3,13 +3,20 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-type Step = 'household' | 'routine' | 'preferences' | 'restrictions' | 'staples';
+type Step = 'household' | 'routine' | 'week_config' | 'preferences' | 'restrictions' | 'staples';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const CHILD_AGE_RANGES = ['Toddler (1-3)', 'Kid (4-12)', 'Teen (13-17)'];
 const CUISINES = ['Italian', 'Mexican', 'Asian', 'American', 'Mediterranean', 'Indian', 'Thai'];
 const MEAL_STYLES = ['Quick (30 min)', 'Slow-cooker', 'One-pan', 'Sheet-pan', 'Instant Pot', 'Make-ahead'];
 const COMMON_ALLERGIES = ['Nuts', 'Dairy', 'Gluten', 'Eggs', 'Soy', 'Shellfish', 'Fish'];
+const LOCK_OPTIONS = [
+  { value: '', label: 'Cook' },
+  { value: 'date_night', label: 'Date Night' },
+  { value: 'takeout', label: 'Takeout' },
+  { value: 'leftovers', label: 'Leftovers' },
+  { value: 'other', label: 'Other' },
+];
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -26,8 +33,9 @@ export default function OnboardingPage() {
   const [mealStylePreferences, setMealStylePreferences] = useState<string[]>([]);
   const [allergies, setAllergies] = useState<string[]>([]);
   const [stapleMeals, setStapleMeals] = useState<string[]>(['', '', '']);
+  const [lockedDays, setLockedDays] = useState<Record<string, string>>({});
 
-  const steps: Step[] = ['household', 'routine', 'preferences', 'restrictions', 'staples'];
+  const steps: Step[] = ['household', 'routine', 'week_config', 'preferences', 'restrictions', 'staples'];
   const stepIndex = steps.indexOf(currentStep);
   const progress = ((stepIndex + 1) / steps.length) * 100;
 
@@ -39,6 +47,16 @@ export default function OnboardingPage() {
     const updated = [...stapleMeals];
     updated[index] = value;
     setStapleMeals(updated);
+  }
+
+  function updateLockedDay(day: string, value: string) {
+    const updated = { ...lockedDays };
+    if (value === '') {
+      delete updated[day];
+    } else {
+      updated[day] = value;
+    }
+    setLockedDays(updated);
   }
 
   async function handleComplete() {
@@ -60,6 +78,7 @@ export default function OnboardingPage() {
       };
 
       localStorage.setItem('meal_planner_preferences', JSON.stringify(preferences));
+      localStorage.setItem('weekly_locked_days', JSON.stringify(lockedDays));
       router.push('/dashboard');
     } catch (err) {
       console.error('Error saving profile:', err);
@@ -213,6 +232,37 @@ export default function OnboardingPage() {
                 </button>
               </div>
             </div>
+          </div>
+        );
+
+      case 'week_config':
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900">Configure Your Typical Week</h2>
+            <p className="text-gray-600">
+              Which days do you typically cook vs. go out, have leftovers, etc.? This helps us create a more realistic meal plan for you.
+            </p>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+              {DAYS_OF_WEEK.map((day) => (
+                <div key={day} className="flex flex-col">
+                  <label className="text-sm font-medium text-gray-700 mb-1">{day.slice(0, 3)}</label>
+                  <select
+                    value={lockedDays[day] || ''}
+                    onChange={(e) => updateLockedDay(day, e.target.value)}
+                    className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {LOCK_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-sm text-gray-500">
+              Don&apos;t worry, you can change these settings anytime from the dashboard.
+            </p>
           </div>
         );
 
