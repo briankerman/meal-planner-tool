@@ -11,10 +11,10 @@ export default function Home() {
             <Image
               src="/images/simplersundayslogo.png"
               alt="Simpler Sundays Logo"
-              width={150}
-              height={50}
+              width={200}
+              height={80}
               priority
-              className="h-12 w-auto"
+              className="h-16 w-auto"
             />
           </div>
           <Link
@@ -29,7 +29,7 @@ export default function Home() {
       {/* Hero Section with Image */}
       <div className="relative w-full h-[400px] sm:h-[500px] mb-16">
         <Image
-          src="/images/heroimage.png"
+          src="/images/heroimage.jpg"
           alt="Meal Planning Hero"
           fill
           priority
