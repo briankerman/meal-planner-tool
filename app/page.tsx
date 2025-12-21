@@ -9,7 +9,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center">
             <Image
-              src="/images/simplersundayslogo.png"
+              src="/images/simplersundayswordmark.png"
               alt="Simpler Sundays Logo"
               width={200}
               height={80}
