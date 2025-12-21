@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function Home() {
   return (
@@ -6,7 +7,16 @@ export default function Home() {
       {/* Header */}
       <header className="py-4 px-4">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Simpler Sundays</h1>
+          <div className="flex items-center">
+            <Image
+              src="/images/simplersundayslogo.png"
+              alt="Simpler Sundays Logo"
+              width={150}
+              height={50}
+              priority
+              className="h-12 w-auto"
+            />
+          </div>
           <Link
             href="/login"
             className="text-blue-600 hover:text-blue-700 font-medium"
@@ -16,24 +26,36 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero */}
-      <main className="max-w-6xl mx-auto px-4 py-16 sm:py-24">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
-            Take the stress out of meal planning
-          </h2>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            AI-powered meal plans that learn what your family loves.
-            Generate a week&apos;s worth of dinners in seconds, complete with grocery lists.
-          </p>
-          <Link
-            href="/onboarding"
-            className="inline-block px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition text-lg"
-          >
-            Get Started Free
-          </Link>
+      {/* Hero Section with Image */}
+      <div className="relative w-full h-[400px] sm:h-[500px] mb-16">
+        <Image
+          src="/images/heroimage.png"
+          alt="Meal Planning Hero"
+          fill
+          priority
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+          <div className="text-center text-white px-4">
+            <h2 className="text-4xl sm:text-5xl font-bold mb-6 drop-shadow-lg">
+              Take the stress out of meal planning
+            </h2>
+            <p className="text-xl mb-8 max-w-2xl mx-auto drop-shadow-md">
+              AI-powered meal plans that learn what your family loves.
+              Generate a week&apos;s worth of dinners in seconds, complete with grocery lists.
+            </p>
+            <Link
+              href="/onboarding"
+              className="inline-block px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition text-lg shadow-lg"
+            >
+              Get Started Free
+            </Link>
+          </div>
         </div>
+      </div>
 
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-4 pb-16">
         {/* Features */}
         <div className="grid md:grid-cols-3 gap-8 mb-16">
           <div className="bg-white rounded-lg p-6 shadow-sm">
