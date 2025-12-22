@@ -282,25 +282,44 @@ export default function DashboardPage() {
               {mealPlan.meals?.map((meal: Meal, idx: number) => (
                 <div
                   key={idx}
-                  onClick={() => setSelectedMeal(meal)}
-                  className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                  className="border border-gray-200 rounded-lg p-4 hover:border-blue-400 transition-colors"
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <div>
+                    <div
+                      onClick={() => setSelectedMeal(meal)}
+                      className="flex-1 cursor-pointer"
+                    >
                       <div className="text-sm font-medium text-gray-500">{meal.day}</div>
                       <h4 className="text-lg font-semibold text-gray-900">{meal.name}</h4>
                     </div>
-                    <div className="text-sm text-gray-600">
-                      {meal.prepTime} prep + {meal.cookTime} cook
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm text-gray-600">
+                        {meal.prepTime} prep + {meal.cookTime} cook
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          regenerateMeal(meal.day);
+                        }}
+                        disabled={regeneratingDay === meal.day}
+                        className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {regeneratingDay === meal.day ? 'Regenerating...' : 'Regenerate'}
+                      </button>
                     </div>
                   </div>
-                  <p className="text-gray-600 text-sm mb-3">{meal.description}</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {meal.tags?.map((tag: string) => (
-                      <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                        {tag}
-                      </span>
-                    ))}
+                  <div
+                    onClick={() => setSelectedMeal(meal)}
+                    className="cursor-pointer"
+                  >
+                    <p className="text-gray-600 text-sm mb-3">{meal.description}</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {meal.tags?.map((tag: string) => (
+                        <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ))}
