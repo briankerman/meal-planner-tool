@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 
 export default function Home() {
   return (
@@ -8,12 +7,9 @@ export default function Home() {
       <header className="py-4 px-4">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center">
-            <Image
+            <img
               src="/images/simplersundayswordmark.png"
               alt="Simpler Sundays Logo"
-              width={200}
-              height={80}
-              priority
               className="h-16 w-auto"
             />
           </div>
@@ -28,12 +24,10 @@ export default function Home() {
 
       {/* Hero Section with Image */}
       <div className="relative w-full h-[400px] sm:h-[500px] mb-16">
-        <Image
+        <img
           src="/images/heroimage.jpg"
           alt="Meal Planning Hero"
-          fill
-          priority
-          className="object-cover"
+          className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
           <div className="text-center text-white px-4">
