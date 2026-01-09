@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import {
   generateGroceryList,
   formatGroceryListForPrint,
@@ -34,28 +35,68 @@ export default function DashboardPage() {
   ];
 
   useEffect(() => {
-    const stored = localStorage.getItem('meal_planner_preferences');
-    if (stored) {
-      const prefs = JSON.parse(stored);
-      setProfile(prefs);
-      if (!prefs.onboarding_completed) {
-        router.push('/onboarding');
+    async function loadData() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+          router.push('/login');
+          return;
+        }
+
+        // Load profile from Supabase
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError) {
+          console.error('Error loading profile:', profileError);
+          router.push('/onboarding');
+          return;
+        }
+
+        if (!profileData.onboarding_completed) {
+          router.push('/onboarding');
+          return;
+        }
+
+        setProfile(profileData);
+
+        // Load current week's meal plan from Supabase
+        const today = new Date();
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay());
+        const weekStartStr = weekStart.toISOString().split('T')[0];
+
+        const { data: mealPlans } = await supabase
+          .from('meal_plans')
+          .select('*, meals(*)')
+          .eq('user_id', user.id)
+          .eq('week_start_date', weekStartStr)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (mealPlans && mealPlans.length > 0) {
+          setMealPlan({ meals: mealPlans[0].meals });
+          setLockedDays(mealPlans[0].nights_out || {});
+        } else {
+          // Fallback to localStorage for locked days
+          const storedLockedDays = localStorage.getItem('weekly_locked_days');
+          if (storedLockedDays) {
+            setLockedDays(JSON.parse(storedLockedDays));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setLoading(false);
       }
-    } else {
-      router.push('/onboarding');
     }
 
-    const storedPlan = localStorage.getItem('current_meal_plan');
-    if (storedPlan) {
-      setMealPlan(JSON.parse(storedPlan));
-    }
-
-    const storedLockedDays = localStorage.getItem('weekly_locked_days');
-    if (storedLockedDays) {
-      setLockedDays(JSON.parse(storedLockedDays));
-    }
-
-    setLoading(false);
+    loadData();
   }, [router]);
 
   useEffect(() => {
@@ -69,6 +110,14 @@ export default function DashboardPage() {
   async function generateNewMealPlan() {
     setGenerating(true);
     try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error('Not authenticated');
+      }
+
+      // Generate meal plan via API
       const response = await fetch('/api/generate-meal-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -80,8 +129,59 @@ export default function DashboardPage() {
       }
 
       const plan = await response.json();
+
+      // Calculate week dates
+      const today = new Date();
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay());
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+
+      // Save to Supabase
+      const { data: mealPlanData, error: mealPlanError } = await supabase
+        .from('meal_plans')
+        .insert({
+          user_id: user.id,
+          week_start_date: weekStart.toISOString().split('T')[0],
+          week_end_date: weekEnd.toISOString().split('T')[0],
+          nights_out: Object.keys(lockedDays),
+        })
+        .select()
+        .single();
+
+      if (mealPlanError) throw mealPlanError;
+
+      // Save meals to Supabase
+      if (plan.meals && mealPlanData) {
+        const mealsToInsert = plan.meals.map((meal: any, index: number) => {
+          const dayDate = new Date(weekStart);
+          const dayIndex = DAYS_OF_WEEK.indexOf(meal.day);
+          dayDate.setDate(weekStart.getDate() + (dayIndex >= 0 ? dayIndex : index));
+
+          return {
+            user_id: user.id,
+            meal_plan_id: mealPlanData.id,
+            name: meal.name,
+            description: meal.description,
+            day_of_week: meal.day,
+            date: dayDate.toISOString().split('T')[0],
+            ingredients: meal.ingredients,
+            instructions: meal.instructions,
+            prep_time_minutes: parseInt(meal.prepTime) || null,
+            cook_time_minutes: parseInt(meal.cookTime) || null,
+            tags: meal.tags,
+            cuisine: null,
+          };
+        });
+
+        const { error: mealsError } = await supabase
+          .from('meals')
+          .insert(mealsToInsert);
+
+        if (mealsError) throw mealsError;
+      }
+
       setMealPlan(plan);
-      localStorage.setItem('current_meal_plan', JSON.stringify(plan));
       setShowGroceryList(false);
     } catch (error) {
       console.error('Error generating meal plan:', error);

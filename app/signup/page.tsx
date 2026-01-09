@@ -30,36 +30,20 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2bGJ2cG5vYm56emNmZ29zcmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYwODEwMjcsImV4cCI6MjA4MTY1NzAyN30.Qxmr-vABizZqNHiyk7pzzRW6BIrS--q2UA048ZHpe3o';
-
-      const response = await fetch('https://dvlbvpnobhzzcfgosrbw.supabase.co/auth/v1/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': anonKey,
-          'Authorization': `Bearer ${anonKey}`
-        },
-        body: JSON.stringify({ email, password })
+      const supabase = createClient();
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
       });
 
-      const data = await response.json();
-      console.log('Signup response:', data);
-
-      if (!response.ok) {
-        throw new Error(data.error_description || data.msg || 'Signup failed');
-      }
+      if (signUpError) throw signUpError;
 
       if (data.user) {
-        console.log('User created successfully:', data.user.id);
-        // Store session
-        if (data.access_token) {
-          localStorage.setItem('supabase.auth.token', data.access_token);
-        }
         router.push('/onboarding');
       }
     } catch (err: any) {
       console.error('Signup error:', err);
-      setError(err.message || err.toString() || 'Failed to create account');
+      setError(err.message || 'Failed to create account');
     } finally {
       setLoading(false);
     }

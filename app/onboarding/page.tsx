@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 type Step = 'household' | 'routine' | 'week_config' | 'preferences' | 'restrictions' | 'staples';
 
@@ -62,23 +63,36 @@ export default function OnboardingPage() {
   async function handleComplete() {
     setLoading(true);
     try {
-      // Store in localStorage (no auth for now)
-      const preferences = {
-        num_adults: numAdults,
-        num_children: numChildren,
-        child_age_ranges: childAgeRanges.length > 0 ? childAgeRanges : null,
-        shopping_day: shoppingDay,
-        dinner_days_per_week: dinnerDaysPerWeek,
-        plans_leftovers: plansLeftovers,
-        cuisine_preferences: cuisinePreferences.length > 0 ? cuisinePreferences : null,
-        meal_style_preferences: mealStylePreferences.length > 0 ? mealStylePreferences : null,
-        allergies: allergies.length > 0 ? allergies : null,
-        staple_meals: stapleMeals.filter(m => m.trim() !== ''),
-        onboarding_completed: true
-      };
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
 
-      localStorage.setItem('meal_planner_preferences', JSON.stringify(preferences));
+      if (!user) {
+        throw new Error('Not authenticated');
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          num_adults: numAdults,
+          num_children: numChildren,
+          child_age_ranges: childAgeRanges.length > 0 ? childAgeRanges : null,
+          shopping_day: shoppingDay,
+          dinner_days_per_week: dinnerDaysPerWeek,
+          plans_leftovers: plansLeftovers,
+          cuisine_preferences: cuisinePreferences.length > 0 ? cuisinePreferences : null,
+          meal_style_preferences: mealStylePreferences.length > 0 ? mealStylePreferences : null,
+          allergies: allergies.length > 0 ? allergies : null,
+          staple_meals: stapleMeals.filter(m => m.trim() !== ''),
+          onboarding_completed: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      // Also save locked days to localStorage for now (can be moved to meal_plans later)
       localStorage.setItem('weekly_locked_days', JSON.stringify(lockedDays));
+
       router.push('/dashboard');
     } catch (err) {
       console.error('Error saving profile:', err);

@@ -132,6 +132,27 @@ ALTER TABLE preference_signals ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own signals" ON preference_signals FOR ALL USING (auth.uid() = user_id);
 CREATE INDEX idx_signals_user_type ON preference_signals(user_id, signal_type);
 
+-- 7. Recipe Cache (for AI-generated recipes to reduce API costs)
+CREATE TABLE recipe_cache (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  ingredients JSONB NOT NULL,
+  instructions TEXT[],
+  prep_time_minutes INTEGER,
+  cook_time_minutes INTEGER,
+  tags TEXT[],
+  cuisine TEXT,
+  times_generated INTEGER DEFAULT 1,
+  last_used_date DATE DEFAULT CURRENT_DATE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- No RLS needed - this is a global cache shared across all users
+CREATE INDEX idx_recipe_cache_name ON recipe_cache(name);
+CREATE INDEX idx_recipe_cache_cuisine ON recipe_cache(cuisine);
+CREATE INDEX idx_recipe_cache_tags ON recipe_cache USING GIN(tags);
+
 -- Additional Indexes
 CREATE INDEX idx_profiles_user_id ON profiles(id);
 CREATE INDEX idx_meal_plans_user_locked ON meal_plans(user_id, is_locked);
