@@ -46,6 +46,8 @@ export interface Profile {
   child_age_ranges: string[] | null;
   shopping_day: string;
   dinner_days_per_week: number;
+  breakfast_enabled: boolean;
+  lunch_enabled: boolean;
   plans_leftovers: boolean;
   cuisine_preferences: string[] | null;
   meal_style_preferences: string[] | null;
@@ -73,12 +75,15 @@ export interface Ingredient {
   category: string;
 }
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner';
+
 export interface Meal {
   id: string;
   user_id: string;
   meal_plan_id: string | null;
   name: string;
   description: string | null;
+  meal_type: MealType;
   day_of_week: string;
   date: string;
   ingredients: Ingredient[];
@@ -99,6 +104,7 @@ export interface SavedRecipe {
   user_id: string;
   name: string;
   description: string | null;
+  meal_type: MealType | null;
   source: string | null;
   ingredients: Ingredient[];
   instructions: string[] | null;

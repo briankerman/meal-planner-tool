@@ -5,11 +5,14 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import {
   generateGroceryList,
+  generateGroceryListByMeal,
   formatGroceryListForPrint,
   getGroceryListItemCount,
   loadCheckedState,
   saveCheckedState,
   type GroceryList,
+  type GroceryByMeal,
+  type GroupingMode,
   type Meal,
 } from '@/lib/utils/groceryList';
 
@@ -22,7 +25,10 @@ export default function DashboardPage() {
   const [lockedDays, setLockedDays] = useState<Record<string, string>>({});
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   const [regeneratingDay, setRegeneratingDay] = useState<string | null>(null);
+  const [savingRecipe, setSavingRecipe] = useState(false);
   const [groceryList, setGroceryList] = useState<GroceryList | null>(null);
+  const [groceryListByMeal, setGroceryListByMeal] = useState<GroceryByMeal | null>(null);
+  const [groupingMode, setGroupingMode] = useState<GroupingMode>('category');
   const [showGroceryList, setShowGroceryList] = useState(false);
 
   const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -104,6 +110,9 @@ export default function DashboardPage() {
       const list = generateGroceryList(mealPlan.meals);
       const listWithChecked = loadCheckedState(list);
       setGroceryList(listWithChecked);
+
+      const listByMeal = generateGroceryListByMeal(mealPlan.meals);
+      setGroceryListByMeal(listByMeal);
     }
   }, [mealPlan]);
 
@@ -163,6 +172,7 @@ export default function DashboardPage() {
             meal_plan_id: mealPlanData.id,
             name: meal.name,
             description: meal.description,
+            meal_type: meal.mealType || 'dinner',
             day_of_week: meal.day,
             date: dayDate.toISOString().split('T')[0],
             ingredients: meal.ingredients,
@@ -237,6 +247,34 @@ export default function DashboardPage() {
     localStorage.setItem('weekly_locked_days', JSON.stringify(updated));
   }
 
+  async function saveRecipeToCookbook(meal: Meal) {
+    setSavingRecipe(true);
+    try {
+      const response = await fetch('/api/saved-recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meal }),
+      });
+
+      if (response.status === 409) {
+        alert('This recipe is already in your cookbook!');
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to save recipe');
+      }
+
+      alert('Recipe saved to your cookbook!');
+      setSelectedMeal(null);
+    } catch (error) {
+      console.error('Error saving recipe:', error);
+      alert('Failed to save recipe. Please try again.');
+    } finally {
+      setSavingRecipe(false);
+    }
+  }
+
   function toggleGroceryItem(category: string, itemName: string) {
     if (!groceryList) return;
 
@@ -295,9 +333,17 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <h1 className="text-2xl font-bold text-gray-900">Simpler Sundays</h1>
-            <button onClick={handleSignOut} className="text-sm text-gray-600 hover:text-gray-900">
-              Sign out
-            </button>
+            <div className="flex items-center gap-4">
+              <a href="/history" className="text-sm text-gray-600 hover:text-gray-900 font-medium">
+                History
+              </a>
+              <a href="/cookbook" className="text-sm text-gray-600 hover:text-gray-900 font-medium">
+                My Cookbook
+              </a>
+              <button onClick={handleSignOut} className="text-sm text-gray-600 hover:text-gray-900">
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -374,55 +420,71 @@ export default function DashboardPage() {
                 onClick={generateNewMealPlan}
                 disabled={generating}
               >
-                {generating ? 'Generating...' : 'Generate This Week&apos;s Plan'}
+                {generating ? 'Generating...' : "Generate This Week's Plan"}
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {mealPlan.meals?.map((meal: Meal, idx: number) => (
-                <div
-                  key={idx}
-                  className="border border-gray-200 rounded-lg p-4 hover:border-blue-400 transition-colors"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div
-                      onClick={() => setSelectedMeal(meal)}
-                      className="flex-1 cursor-pointer"
-                    >
-                      <div className="text-sm font-medium text-gray-500">{meal.day}</div>
-                      <h4 className="text-lg font-semibold text-gray-900">{meal.name}</h4>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-sm text-gray-600">
-                        {meal.prepTime} prep + {meal.cookTime} cook
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          regenerateMeal(meal.day);
-                        }}
-                        disabled={regeneratingDay === meal.day}
-                        className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 whitespace-nowrap"
-                      >
-                        {regeneratingDay === meal.day ? 'Regenerating...' : 'Regenerate'}
-                      </button>
-                    </div>
-                  </div>
-                  <div
-                    onClick={() => setSelectedMeal(meal)}
-                    className="cursor-pointer"
-                  >
-                    <p className="text-gray-600 text-sm mb-3">{meal.description}</p>
-                    <div className="flex gap-2 flex-wrap">
-                      {meal.tags?.map((tag: string) => (
-                        <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                          {tag}
-                        </span>
+            <div className="space-y-6">
+              {DAYS_OF_WEEK.map(day => {
+                const dayMeals = mealPlan.meals?.filter((m: Meal) => m.day === day) || [];
+                if (dayMeals.length === 0) return null;
+
+                return (
+                  <div key={day} className="border-b border-gray-200 pb-4 last:border-0">
+                    <h4 className="text-md font-semibold text-gray-700 mb-3">{day}</h4>
+                    <div className="space-y-3">
+                      {dayMeals.map((meal: Meal, idx: number) => (
+                        <div
+                          key={idx}
+                          className="border border-gray-200 rounded-lg p-4 hover:border-blue-400 transition-colors"
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <div
+                              onClick={() => setSelectedMeal(meal)}
+                              className="flex-1 cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-semibold text-blue-600 uppercase">
+                                  {meal.mealType || 'dinner'}
+                                </span>
+                              </div>
+                              <h5 className="text-lg font-semibold text-gray-900">{meal.name}</h5>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="text-sm text-gray-600">
+                                {meal.prepTime} prep + {meal.cookTime} cook
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  regenerateMeal(meal.day);
+                                }}
+                                disabled={regeneratingDay === meal.day}
+                                className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {regeneratingDay === meal.day ? 'Regenerating...' : 'Regenerate'}
+                              </button>
+                            </div>
+                          </div>
+                          <div
+                            onClick={() => setSelectedMeal(meal)}
+                            className="cursor-pointer"
+                          >
+                            <p className="text-gray-600 text-sm mb-3">{meal.description}</p>
+                            <div className="flex gap-2 flex-wrap">
+                              {meal.tags?.map((tag: string) => (
+                                <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -457,27 +519,75 @@ export default function DashboardPage() {
             </div>
 
             {showGroceryList && (
-              <div className="space-y-6">
-                {Object.entries(groceryList).map(([category, items]) => (
-                  <div key={category}>
-                    <h4 className="text-sm font-semibold text-gray-700 uppercase mb-2">{category}</h4>
-                    <div className="space-y-1">
-                      {items.map((item, idx) => (
-                        <label key={idx} className="flex items-center gap-3 py-1 cursor-pointer hover:bg-gray-50 px-2 rounded">
-                          <input
-                            type="checkbox"
-                            checked={item.checked}
-                            onChange={() => toggleGroceryItem(category, item.name)}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                          <span className={`flex-1 text-sm ${item.checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                            {item.totalAmount} {item.unit} {item.name}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
+              <div>
+                <div className="flex gap-2 mb-4">
+                  <button
+                    onClick={() => setGroupingMode('category')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium ${
+                      groupingMode === 'category'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    By Category
+                  </button>
+                  <button
+                    onClick={() => setGroupingMode('meal')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium ${
+                      groupingMode === 'meal'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    By Meal
+                  </button>
+                </div>
+
+                {groupingMode === 'category' ? (
+                  <div className="space-y-6">
+                    {Object.entries(groceryList).map(([category, items]) => (
+                      <div key={category}>
+                        <h4 className="text-sm font-semibold text-gray-700 uppercase mb-2">{category}</h4>
+                        <div className="space-y-1">
+                          {items.map((item, idx) => (
+                            <label key={idx} className="flex items-center gap-3 py-1 cursor-pointer hover:bg-gray-50 px-2 rounded">
+                              <input
+                                type="checkbox"
+                                checked={item.checked}
+                                onChange={() => toggleGroceryItem(category, item.name)}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <span className={`flex-1 text-sm ${item.checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                {item.totalAmount} {item.unit} {item.name}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <div className="space-y-6">
+                    {groceryListByMeal && Object.entries(groceryListByMeal).map(([mealKey, meal]) => (
+                      <div key={mealKey}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs font-semibold text-blue-600 uppercase">
+                            {meal.mealType || 'dinner'}
+                          </span>
+                          <h4 className="text-sm font-semibold text-gray-700">{mealKey.split('_').slice(1).join(' ')}</h4>
+                          <span className="text-xs text-gray-500">({meal.day})</span>
+                        </div>
+                        <div className="space-y-1 pl-4">
+                          {meal.items.map((item, idx) => (
+                            <div key={idx} className="text-sm text-gray-700">
+                              • {item.totalAmount} {item.unit} {item.name}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -602,13 +712,22 @@ export default function DashboardPage() {
                   ))}
                 </ol>
               </div>
-              <button
-                onClick={() => regenerateMeal(selectedMeal.day)}
-                disabled={regeneratingDay === selectedMeal.day}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50"
-              >
-                {regeneratingDay === selectedMeal.day ? 'Regenerating...' : 'Regenerate This Meal'}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => saveRecipeToCookbook(selectedMeal)}
+                  disabled={savingRecipe}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium disabled:opacity-50"
+                >
+                  {savingRecipe ? 'Saving...' : 'Save to Cookbook'}
+                </button>
+                <button
+                  onClick={() => regenerateMeal(selectedMeal.day)}
+                  disabled={regeneratingDay === selectedMeal.day}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50"
+                >
+                  {regeneratingDay === selectedMeal.day ? 'Regenerating...' : 'Regenerate This Meal'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

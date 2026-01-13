@@ -18,6 +18,7 @@ export interface GroceryList {
 
 export interface Meal {
   day: string;
+  mealType?: string;
   name: string;
   description: string;
   prepTime: string;
@@ -28,8 +29,18 @@ export interface Meal {
   tags: string[];
 }
 
+export type GroupingMode = 'category' | 'meal';
+
+export interface GroceryByMeal {
+  [mealName: string]: {
+    day: string;
+    mealType?: string;
+    items: GroceryItem[];
+  };
+}
+
 /**
- * Generate a consolidated grocery list from meal plan
+ * Generate a consolidated grocery list from meal plan grouped by category
  */
 export function generateGroceryList(meals: Meal[]): GroceryList {
   const itemsByCategory: GroceryList = {};
@@ -103,6 +114,29 @@ export function generateGroceryList(meals: Meal[]): GroceryList {
   }
 
   return sortedList;
+}
+
+/**
+ * Generate a grocery list grouped by meal
+ */
+export function generateGroceryListByMeal(meals: Meal[]): GroceryByMeal {
+  const itemsByMeal: GroceryByMeal = {};
+
+  for (const meal of meals) {
+    const mealKey = `${meal.day}_${meal.name}`;
+    itemsByMeal[mealKey] = {
+      day: meal.day,
+      mealType: meal.mealType,
+      items: meal.ingredients.map((ing) => ({
+        name: ing.name,
+        totalAmount: ing.amount,
+        unit: ing.unit,
+        checked: false,
+      })),
+    };
+  }
+
+  return itemsByMeal;
 }
 
 /**

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
-type Step = 'household' | 'routine' | 'week_config' | 'preferences' | 'restrictions' | 'staples';
+type Step = 'household' | 'routine' | 'preferences' | 'restrictions' | 'staples';
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const CHILD_AGE_RANGES = ['Toddler (1-3)', 'Kid (4-12)', 'Teen (13-17)'];
@@ -35,8 +35,10 @@ export default function OnboardingPage() {
   const [allergies, setAllergies] = useState<string[]>([]);
   const [stapleMeals, setStapleMeals] = useState<string[]>(['', '', '']);
   const [lockedDays, setLockedDays] = useState<Record<string, string>>({});
+  const [breakfastEnabled, setBreakfastEnabled] = useState(false);
+  const [lunchEnabled, setLunchEnabled] = useState(false);
 
-  const steps: Step[] = ['household', 'routine', 'week_config', 'preferences', 'restrictions', 'staples'];
+  const steps: Step[] = ['household', 'routine', 'preferences', 'restrictions', 'staples'];
   const stepIndex = steps.indexOf(currentStep);
   const progress = ((stepIndex + 1) / steps.length) * 100;
 
@@ -78,6 +80,8 @@ export default function OnboardingPage() {
           child_age_ranges: childAgeRanges.length > 0 ? childAgeRanges : null,
           shopping_day: shoppingDay,
           dinner_days_per_week: dinnerDaysPerWeek,
+          breakfast_enabled: breakfastEnabled,
+          lunch_enabled: lunchEnabled,
           plans_leftovers: plansLeftovers,
           cuisine_preferences: cuisinePreferences.length > 0 ? cuisinePreferences : null,
           meal_style_preferences: mealStylePreferences.length > 0 ? mealStylePreferences : null,
@@ -219,6 +223,44 @@ export default function OnboardingPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                Which meals would you like meal plans for?
+              </label>
+              <p className="text-sm text-gray-600 mb-3">
+                Select which meals to include in your weekly meal plan. This helps create a complete grocery list.
+              </p>
+              <div className="space-y-3">
+                <label className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={breakfastEnabled}
+                    onChange={(e) => setBreakfastEnabled(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-3 text-gray-700 font-medium">Breakfast</span>
+                </label>
+                <label className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={lunchEnabled}
+                    onChange={(e) => setLunchEnabled(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-3 text-gray-700 font-medium">Lunch</span>
+                </label>
+                <div className="flex items-center p-3 border rounded-md bg-blue-50 border-blue-200">
+                  <input
+                    type="checkbox"
+                    checked={true}
+                    disabled
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  />
+                  <span className="ml-3 text-gray-700 font-medium">Dinner (always included)</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Do you plan for leftovers?
               </label>
               <div className="flex gap-4">
@@ -246,37 +288,6 @@ export default function OnboardingPage() {
                 </button>
               </div>
             </div>
-          </div>
-        );
-
-      case 'week_config':
-        return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-900">Configure Your Typical Week</h2>
-            <p className="text-gray-600">
-              Which days do you typically cook vs. go out, have leftovers, etc.? This helps us create a more realistic meal plan for you.
-            </p>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-              {DAYS_OF_WEEK.map((day) => (
-                <div key={day} className="flex flex-col">
-                  <label className="text-sm font-medium text-gray-700 mb-1">{day.slice(0, 3)}</label>
-                  <select
-                    value={lockedDays[day] || ''}
-                    onChange={(e) => updateLockedDay(day, e.target.value)}
-                    className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {LOCK_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-              ))}
-            </div>
-
-            <p className="text-sm text-gray-500">
-              Don&apos;t worry, you can change these settings anytime from the dashboard.
-            </p>
           </div>
         );
 

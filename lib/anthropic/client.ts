@@ -9,6 +9,8 @@ export async function generateMealPlan(preferences: {
   num_children: number;
   child_age_ranges?: string[];
   dinner_days_per_week: number;
+  breakfast_enabled?: boolean;
+  lunch_enabled?: boolean;
   shopping_day: string;
   plans_leftovers: boolean;
   cuisine_preferences?: string[];
@@ -22,6 +24,15 @@ export async function generateMealPlan(preferences: {
   const lockedCount = Object.keys(lockedDays).length;
   const cookingDays = preferences.dinner_days_per_week;
 
+  // Determine which meal types to generate
+  const mealTypes: string[] = [];
+  if (preferences.breakfast_enabled) mealTypes.push('breakfast');
+  if (preferences.lunch_enabled) mealTypes.push('lunch');
+  mealTypes.push('dinner'); // Always include dinner
+
+  const totalMealsPerDay = mealTypes.length;
+  const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
   // Build locked days description
   const lockedDaysDesc = Object.entries(lockedDays)
     .map(([day, type]) => `${day}: ${type}`)
@@ -30,6 +41,7 @@ export async function generateMealPlan(preferences: {
   const prompt = `Generate a weekly meal plan based on these preferences:
 - Household: ${preferences.num_adults} adults, ${preferences.num_children} children
 - Age ranges: ${preferences.child_age_ranges?.join(', ') || 'None'}
+- Meal types: ${mealTypes.join(', ')}
 - Dinners needed: ${cookingDays} per week
 - Shopping day: ${preferences.shopping_day}
 - Locked days (no cooking): ${lockedDaysDesc}
@@ -43,52 +55,72 @@ ${preferences.plans_leftovers
   ? `IMPORTANT: Plan meals to create intentional leftovers. Include 1-2 "leftover nights" that repurpose previous meals (e.g., roast chicken Monday → chicken tacos Wednesday, or double the pasta sauce for two nights). Mark leftover-friendly meals with a "leftovers" tag and mention in the description how leftovers can be used.`
   : ''}
 
-Generate exactly ${cookingDays} dinner recipes for the week. ${lockedCount > 0 ? `DO NOT generate meals for these locked days: ${Object.keys(lockedDays).join(', ')}. Only generate meals for cooking days.` : ''}
+Generate meals for ALL 7 days of the week with the following meal types per day:
+${preferences.breakfast_enabled ? '- 1 breakfast (quick, healthy options like overnight oats, smoothies, egg dishes)' : ''}
+${preferences.lunch_enabled ? '- 1 lunch (portable, work-friendly options)' : ''}
+- 1 dinner (main family meal)
+
+${lockedCount > 0 ? `For locked days (${Object.keys(lockedDays).join(', ')}), still generate breakfast and lunch if enabled, but you may skip dinner or note it as "${lockedDaysDesc}".` : ''}
 
 For each meal, provide:
 1. Meal name
-2. Brief description (1 sentence, mention if it creates/uses leftovers)
-3. Prep time and cook time
-4. Structured ingredients with quantities, units, and categories
-5. Step-by-step instructions
-6. Servings (for ${preferences.num_adults + preferences.num_children} people)
-7. Tags (include "leftovers" if applicable)
+2. Meal type (breakfast, lunch, or dinner)
+3. Brief description (1 sentence, mention if it creates/uses leftovers)
+4. Prep time and cook time
+5. Structured ingredients with quantities, units, and categories
+6. Step-by-step instructions
+7. Servings (for ${preferences.num_adults + preferences.num_children} people)
+8. Tags (include "leftovers" if applicable, "quick" for breakfast/lunch)
 
 Format as JSON with this EXACT structure:
 {
   "meals": [
     {
       "day": "Monday",
+      "mealType": "breakfast",
       "name": "Meal Name",
+      "description": "Brief description",
+      "prepTime": "5 min",
+      "cookTime": "10 min",
+      "servings": 4,
+      "ingredients": [
+        {
+          "name": "oats",
+          "amount": "2",
+          "unit": "cups",
+          "category": "pantry"
+        },
+        {
+          "name": "milk",
+          "amount": "3",
+          "unit": "cups",
+          "category": "dairy"
+        }
+      ],
+      "instructions": ["step 1", "step 2", "step 3"],
+      "tags": ["quick", "healthy"]
+    },
+    {
+      "day": "Monday",
+      "mealType": "dinner",
+      "name": "Another Meal Name",
       "description": "Brief description",
       "prepTime": "15 min",
       "cookTime": "30 min",
       "servings": 4,
-      "ingredients": [
-        {
-          "name": "chicken breast",
-          "amount": "1.5",
-          "unit": "lbs",
-          "category": "meat"
-        },
-        {
-          "name": "olive oil",
-          "amount": "2",
-          "unit": "tbsp",
-          "category": "pantry"
-        }
-      ],
-      "instructions": ["step 1", "step 2", "step 3"],
-      "tags": ["quick", "one-pan"]
+      "ingredients": [...],
+      "instructions": [...],
+      "tags": ["one-pan"]
     }
   ]
 }
 
-Categories for ingredients: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other`;
+Categories for ingredients: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other
+IMPORTANT: Return meals for all 7 days. Group meals by day and include the mealType field for each meal.`;
 
   const message = await anthropic.messages.create({
     model: 'claude-3-5-haiku-20241022',
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [
       {
         role: 'user',
