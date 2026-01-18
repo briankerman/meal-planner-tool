@@ -30,15 +30,10 @@ export default function DashboardPage() {
   const [groceryListByMeal, setGroceryListByMeal] = useState<GroceryByMeal | null>(null);
   const [groupingMode, setGroupingMode] = useState<GroupingMode>('category');
   const [showGroceryList, setShowGroceryList] = useState(false);
+  const [weeklyContext, setWeeklyContext] = useState('');
+  const [mealsThisWeek, setMealsThisWeek] = useState<number>(5);
 
   const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const LOCK_OPTIONS = [
-    { value: '', label: 'Cook' },
-    { value: 'date_night', label: 'Date Night' },
-    { value: 'takeout', label: 'Takeout' },
-    { value: 'leftovers', label: 'Leftovers' },
-    { value: 'other', label: 'Other' },
-  ];
 
   useEffect(() => {
     async function loadData() {
@@ -70,6 +65,7 @@ export default function DashboardPage() {
         }
 
         setProfile(profileData);
+        setMealsThisWeek(profileData.dinner_days_per_week || 5);
 
         // Load current week's meal plan from Supabase
         const today = new Date();
@@ -130,7 +126,11 @@ export default function DashboardPage() {
       const response = await fetch('/api/generate-meal-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...profile, locked_days: lockedDays }),
+        body: JSON.stringify({
+          ...profile,
+          dinner_days_per_week: mealsThisWeek,
+          weekly_context: weeklyContext,
+        }),
       });
 
       if (!response.ok) {
@@ -290,23 +290,139 @@ export default function DashboardPage() {
   function printGroceryList() {
     if (!groceryList) return;
 
-    const printContent = formatGroceryListForPrint(groceryList);
+    const today = new Date();
+    const dateStr = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const categoriesHtml = Object.entries(groceryList)
+      .map(([category, items]) => `
+        <div class="category">
+          <h3>${category.charAt(0).toUpperCase() + category.slice(1)}</h3>
+          <ul>
+            ${items.map(item => `
+              <li>
+                <span class="checkbox"></span>
+                <span class="amount">${item.totalAmount} ${item.unit}</span>
+                <span class="name">${item.name}</span>
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      `).join('');
+
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(`
+        <!DOCTYPE html>
         <html>
           <head>
-            <title>Grocery List</title>
+            <title>Grocery List - Simpler Sundays</title>
             <style>
-              body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-              h1 { border-bottom: 2px solid #000; padding-bottom: 10px; }
-              h2 { margin-top: 20px; color: #333; }
-              ul { list-style: none; padding: 0; }
-              li { padding: 5px 0; }
-              @media print { body { padding: 10px; } }
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                padding: 40px;
+                max-width: 800px;
+                margin: 0 auto;
+                color: #1f2937;
+              }
+              .header {
+                text-align: center;
+                margin-bottom: 30px;
+                padding-bottom: 20px;
+                border-bottom: 2px solid #e5e7eb;
+              }
+              .header h1 {
+                font-size: 28px;
+                font-weight: 700;
+                color: #111827;
+                margin-bottom: 8px;
+              }
+              .header .date {
+                font-size: 14px;
+                color: #6b7280;
+              }
+              .header .count {
+                display: inline-block;
+                margin-top: 12px;
+                padding: 6px 16px;
+                background: #eff6ff;
+                color: #1d4ed8;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: 500;
+              }
+              .categories {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 24px;
+              }
+              .category {
+                break-inside: avoid;
+              }
+              .category h3 {
+                font-size: 14px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                color: #374151;
+                margin-bottom: 12px;
+                padding-bottom: 8px;
+                border-bottom: 1px solid #e5e7eb;
+              }
+              .category ul {
+                list-style: none;
+              }
+              .category li {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 8px 0;
+                font-size: 14px;
+                border-bottom: 1px dotted #e5e7eb;
+              }
+              .category li:last-child {
+                border-bottom: none;
+              }
+              .checkbox {
+                width: 16px;
+                height: 16px;
+                border: 2px solid #d1d5db;
+                border-radius: 3px;
+                flex-shrink: 0;
+              }
+              .amount {
+                font-weight: 600;
+                color: #374151;
+                min-width: 60px;
+              }
+              .name {
+                color: #4b5563;
+              }
+              .footer {
+                margin-top: 40px;
+                text-align: center;
+                font-size: 12px;
+                color: #9ca3af;
+              }
+              @media print {
+                body { padding: 20px; }
+                .categories { gap: 16px; }
+              }
             </style>
           </head>
-          <body><pre>${printContent}</pre></body>
+          <body>
+            <div class="header">
+              <h1>Grocery List</h1>
+              <div class="date">${dateStr}</div>
+              <div class="count">${getGroceryListItemCount(groceryList)} items</div>
+            </div>
+            <div class="categories">
+              ${categoriesHtml}
+            </div>
+            <div class="footer">
+              Generated by Simpler Sundays
+            </div>
+          </body>
         </html>
       `);
       printWindow.document.close();
@@ -332,7 +448,11 @@ export default function DashboardPage() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <h1 className="text-2xl font-bold text-gray-900">Simpler Sundays</h1>
+            <img
+              src="/images/simplersundayswordmark.png"
+              alt="Simpler Sundays"
+              className="h-12 w-auto"
+            />
             <div className="flex items-center gap-4">
               <a href="/history" className="text-sm text-gray-600 hover:text-gray-900 font-medium">
                 History
@@ -349,53 +469,33 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
+        <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900">Welcome back!</h2>
-          <p className="text-gray-600 mt-1">Ready to plan your week?</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="text-sm text-gray-600">Household Size</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">
-              {(profile?.num_adults || 0) + (profile?.num_children || 0)} people
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="text-sm text-gray-600">Dinners per Week</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">
-              {profile?.dinner_days_per_week || 0}
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="text-sm text-gray-600">Shopping Day</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">
-              {profile?.shopping_day || 'Not set'}
-            </div>
-          </div>
+          <p className="text-gray-600 mt-1">What&apos;s going on this week?</p>
+          <textarea
+            value={weeklyContext}
+            onChange={(e) => setWeeklyContext(e.target.value)}
+            placeholder="Pizza on Friday, pasta night on Tuesday, going out Saturday, need something quick on Wednesday..."
+            className="mt-3 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-700 placeholder-gray-400"
+            rows={3}
+          />
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Configure This Week</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            {DAYS_OF_WEEK.map((day) => (
-              <div key={day} className="flex flex-col">
-                <label className="text-sm font-medium text-gray-700 mb-1">{day.slice(0, 3)}</label>
-                <select
-                  value={lockedDays[day] || ''}
-                  onChange={(e) => updateLockedDay(day, e.target.value)}
-                  className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {LOCK_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-            ))}
+          <label className="block text-lg font-semibold text-gray-900 mb-3">
+            How many meals do you plan to cook this week?
+          </label>
+          <div className="flex items-center gap-4">
+            <input
+              type="number"
+              min={1}
+              max={7}
+              value={mealsThisWeek}
+              onChange={(e) => setMealsThisWeek(Math.min(7, Math.max(1, parseInt(e.target.value) || 1)))}
+              className="w-20 px-3 py-2 text-lg font-semibold text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <span className="text-gray-600">dinners</span>
           </div>
-          <p className="text-xs text-gray-500 mt-3">
-            Select which days you&apos;ll be cooking vs. going out, having leftovers, etc.
-          </p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
@@ -491,28 +591,29 @@ export default function DashboardPage() {
 
         {mealPlan && groceryList && (
           <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Grocery List
-                {groceryList && (
-                  <span className="ml-2 text-sm font-normal text-gray-500">
-                    ({getGroceryListItemCount(groceryList)} items)
-                  </span>
-                )}
-              </h3>
-              <div className="flex gap-2">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-semibold text-gray-900">Grocery List</h3>
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                  {getGroceryListItemCount(groceryList)} items
+                </span>
+              </div>
+              <div className="flex gap-3">
                 <button
                   onClick={() => setShowGroceryList(!showGroceryList)}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
-                  {showGroceryList ? 'Hide' : 'Show'}
+                  {showGroceryList ? 'Hide List' : 'Show List'}
                 </button>
                 {showGroceryList && (
                   <button
                     onClick={printGroceryList}
-                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-2"
                   >
-                    Print/Export
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Download PDF
                   </button>
                 )}
               </div>
@@ -520,12 +621,12 @@ export default function DashboardPage() {
 
             {showGroceryList && (
               <div>
-                <div className="flex gap-2 mb-4">
+                <div className="flex gap-2 mb-6">
                   <button
                     onClick={() => setGroupingMode('category')}
-                    className={`px-4 py-2 rounded-md text-sm font-medium ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                       groupingMode === 'category'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-blue-600 text-white shadow-sm'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
@@ -533,9 +634,9 @@ export default function DashboardPage() {
                   </button>
                   <button
                     onClick={() => setGroupingMode('meal')}
-                    className={`px-4 py-2 rounded-md text-sm font-medium ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                       groupingMode === 'meal'
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-blue-600 text-white shadow-sm'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
@@ -544,21 +645,24 @@ export default function DashboardPage() {
                 </div>
 
                 {groupingMode === 'category' ? (
-                  <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {Object.entries(groceryList).map(([category, items]) => (
-                      <div key={category}>
-                        <h4 className="text-sm font-semibold text-gray-700 uppercase mb-2">{category}</h4>
-                        <div className="space-y-1">
+                      <div key={category} className="bg-gray-50 rounded-lg p-4">
+                        <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wide mb-3 flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                          {category}
+                        </h4>
+                        <div className="space-y-2">
                           {items.map((item, idx) => (
-                            <label key={idx} className="flex items-center gap-3 py-1 cursor-pointer hover:bg-gray-50 px-2 rounded">
+                            <label key={idx} className="flex items-center gap-3 py-2 px-3 cursor-pointer hover:bg-white rounded-md transition-colors">
                               <input
                                 type="checkbox"
                                 checked={item.checked}
                                 onChange={() => toggleGroceryItem(category, item.name)}
-                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                               />
                               <span className={`flex-1 text-sm ${item.checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                                {item.totalAmount} {item.unit} {item.name}
+                                <span className="font-medium">{item.totalAmount} {item.unit}</span> {item.name}
                               </span>
                             </label>
                           ))}
@@ -569,18 +673,17 @@ export default function DashboardPage() {
                 ) : (
                   <div className="space-y-6">
                     {groceryListByMeal && Object.entries(groceryListByMeal).map(([mealKey, meal]) => (
-                      <div key={mealKey}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xs font-semibold text-blue-600 uppercase">
-                            {meal.mealType || 'dinner'}
+                      <div key={mealKey} className="bg-gray-50 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="px-2 py-1 text-xs font-bold text-blue-700 bg-blue-100 rounded uppercase">
+                            {meal.day}
                           </span>
-                          <h4 className="text-sm font-semibold text-gray-700">{mealKey.split('_').slice(1).join(' ')}</h4>
-                          <span className="text-xs text-gray-500">({meal.day})</span>
+                          <h4 className="text-sm font-semibold text-gray-800">{mealKey.split('_').slice(1).join(' ')}</h4>
                         </div>
-                        <div className="space-y-1 pl-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                           {meal.items.map((item, idx) => (
-                            <div key={idx} className="text-sm text-gray-700">
-                              • {item.totalAmount} {item.unit} {item.name}
+                            <div key={idx} className="text-sm text-gray-700 bg-white px-3 py-2 rounded">
+                              <span className="font-medium">{item.totalAmount} {item.unit}</span> {item.name}
                             </div>
                           ))}
                         </div>

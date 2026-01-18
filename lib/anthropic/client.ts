@@ -17,106 +17,89 @@ export async function generateMealPlan(preferences: {
   meal_style_preferences?: string[];
   allergies?: string[];
   staple_meals?: string[];
-  locked_days?: Record<string, string>;
+  weekly_context?: string;
 }) {
-  // Calculate actual cooking days
-  const lockedDays = preferences.locked_days || {};
-  const lockedCount = Object.keys(lockedDays).length;
   const cookingDays = preferences.dinner_days_per_week;
-
-  // Determine which meal types to generate
-  const mealTypes: string[] = [];
-  if (preferences.breakfast_enabled) mealTypes.push('breakfast');
-  if (preferences.lunch_enabled) mealTypes.push('lunch');
-  mealTypes.push('dinner'); // Always include dinner
-
-  const totalMealsPerDay = mealTypes.length;
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  // Build locked days description
-  const lockedDaysDesc = Object.entries(lockedDays)
-    .map(([day, type]) => `${day}: ${type}`)
-    .join(', ') || 'None';
+  // Build weekly context section if provided
+  const weeklyContextSection = preferences.weekly_context
+    ? `
+USER'S WEEKLY CONTEXT (IMPORTANT - follow these specific requests):
+"${preferences.weekly_context}"
+
+Parse the above for:
+- Specific meal requests (e.g., "taco tuesday" → make Tuesday a taco night)
+- Days they're going out or not cooking (skip those days)
+- Quick meal needs (e.g., "need something quick Wednesday")
+- Theme nights (e.g., "pasta night", "pizza friday")
+
+For SIMPLE/THEME nights (taco night, pasta night, pizza night, etc.):
+- Use the theme as the meal name (e.g., "Taco Night")
+- Provide ONLY a basic ingredient list for shopping - no detailed recipe instructions needed
+- Keep instructions minimal: ["Prepare your favorite tacos with the ingredients above"]
+- Mark with "simple" tag
+- These are family staples where detailed instructions aren't needed
+`
+    : '';
 
   const prompt = `Generate a weekly meal plan based on these preferences:
 - Household: ${preferences.num_adults} adults, ${preferences.num_children} children
 - Age ranges: ${preferences.child_age_ranges?.join(', ') || 'None'}
-- Meal types: ${mealTypes.join(', ')}
 - Dinners needed: ${cookingDays} per week
-- Shopping day: ${preferences.shopping_day}
-- Locked days (no cooking): ${lockedDaysDesc}
-- Plans for leftovers: ${preferences.plans_leftovers ? 'Yes' : 'No'}
 - Cuisine preferences: ${preferences.cuisine_preferences?.join(', ') || 'Any'}
 - Meal styles: ${preferences.meal_style_preferences?.join(', ') || 'Any'}
 - Allergies/restrictions: ${preferences.allergies?.join(', ') || 'None'}
 - Family favorites: ${preferences.staple_meals?.join(', ') || 'None'}
+${weeklyContextSection}
 
 ${preferences.plans_leftovers
-  ? `IMPORTANT: Plan meals to create intentional leftovers. Include 1-2 "leftover nights" that repurpose previous meals (e.g., roast chicken Monday → chicken tacos Wednesday, or double the pasta sauce for two nights). Mark leftover-friendly meals with a "leftovers" tag and mention in the description how leftovers can be used.`
+  ? `Plan meals to create intentional leftovers where practical. Mark leftover-friendly meals with a "leftovers" tag.`
   : ''}
 
-Generate meals for ALL 7 days of the week with the following meal types per day:
-${preferences.breakfast_enabled ? '- 1 breakfast (quick, healthy options like overnight oats, smoothies, egg dishes)' : ''}
-${preferences.lunch_enabled ? '- 1 lunch (portable, work-friendly options)' : ''}
-- 1 dinner (main family meal)
+Generate EXACTLY ${cookingDays} dinner meals for the week. Spread them across the week sensibly.
 
-${lockedCount > 0 ? `For locked days (${Object.keys(lockedDays).join(', ')}), still generate breakfast and lunch if enabled, but you may skip dinner or note it as "${lockedDaysDesc}".` : ''}
-
-For each meal, provide:
+For FULL RECIPES (most meals), provide:
 1. Meal name
-2. Meal type (breakfast, lunch, or dinner)
-3. Brief description (1 sentence, mention if it creates/uses leftovers)
-4. Prep time and cook time
-5. Structured ingredients with quantities, units, and categories
-6. Step-by-step instructions
-7. Servings (for ${preferences.num_adults + preferences.num_children} people)
-8. Tags (include "leftovers" if applicable, "quick" for breakfast/lunch)
+2. Brief description (1 sentence)
+3. Prep time and cook time
+4. Structured ingredients with quantities, units, and categories
+5. Step-by-step instructions (4-8 steps)
+6. Servings (for ${preferences.num_adults + preferences.num_children} people)
+7. Tags
 
-Format as JSON with this EXACT structure:
+For SIMPLE/THEME NIGHTS (taco night, pasta night, etc. from user context):
+1. Theme name (e.g., "Taco Night", "Pasta Night")
+2. Brief description
+3. Prep time and cook time (can be estimates)
+4. Basic ingredient shopping list (just what they'd need to buy)
+5. Minimal instructions: just 1-2 steps like "Prepare your favorite tacos"
+6. Servings
+7. Tags: include "simple"
+
+Format as JSON:
 {
   "meals": [
     {
       "day": "Monday",
-      "mealType": "breakfast",
-      "name": "Meal Name",
-      "description": "Brief description",
-      "prepTime": "5 min",
-      "cookTime": "10 min",
-      "servings": 4,
-      "ingredients": [
-        {
-          "name": "oats",
-          "amount": "2",
-          "unit": "cups",
-          "category": "pantry"
-        },
-        {
-          "name": "milk",
-          "amount": "3",
-          "unit": "cups",
-          "category": "dairy"
-        }
-      ],
-      "instructions": ["step 1", "step 2", "step 3"],
-      "tags": ["quick", "healthy"]
-    },
-    {
-      "day": "Monday",
       "mealType": "dinner",
-      "name": "Another Meal Name",
+      "name": "Meal Name",
       "description": "Brief description",
       "prepTime": "15 min",
       "cookTime": "30 min",
       "servings": 4,
-      "ingredients": [...],
-      "instructions": [...],
-      "tags": ["one-pan"]
+      "ingredients": [
+        {"name": "chicken breast", "amount": "1.5", "unit": "lbs", "category": "meat"},
+        {"name": "olive oil", "amount": "2", "unit": "tbsp", "category": "pantry"}
+      ],
+      "instructions": ["step 1", "step 2", "step 3"],
+      "tags": ["one-pan", "quick"]
     }
   ]
 }
 
 Categories for ingredients: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other
-IMPORTANT: Return meals for all 7 days. Group meals by day and include the mealType field for each meal.`;
+IMPORTANT: Return exactly ${cookingDays} dinner meals spread across the week.`;
 
   const message = await anthropic.messages.create({
     model: 'claude-3-5-haiku-20241022',
