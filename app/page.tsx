@@ -53,7 +53,6 @@ export default function Home() {
         {/* Features */}
         <div className="grid md:grid-cols-3 gap-8 mb-16">
           <div className="bg-white rounded-lg p-6 shadow-sm">
-            <div className="text-3xl mb-3">🤖</div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Smart Meal Plans
             </h3>
@@ -64,7 +63,6 @@ export default function Home() {
           </div>
 
           <div className="bg-white rounded-lg p-6 shadow-sm">
-            <div className="text-3xl mb-3">🛒</div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Auto Grocery Lists
             </h3>
@@ -75,7 +73,6 @@ export default function Home() {
           </div>
 
           <div className="bg-white rounded-lg p-6 shadow-sm">
-            <div className="text-3xl mb-3">📚</div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               Learns Your Taste
             </h3>
