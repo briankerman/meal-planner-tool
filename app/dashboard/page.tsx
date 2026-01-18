@@ -32,6 +32,8 @@ export default function DashboardPage() {
   const [showGroceryList, setShowGroceryList] = useState(false);
   const [weeklyContext, setWeeklyContext] = useState('');
   const [mealsThisWeek, setMealsThisWeek] = useState<number>(5);
+  const [currentWeekExpired, setCurrentWeekExpired] = useState(false);
+  const [currentMealPlanId, setCurrentMealPlanId] = useState<string | null>(null);
 
   const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -82,8 +84,25 @@ export default function DashboardPage() {
           .limit(1);
 
         if (mealPlans && mealPlans.length > 0) {
-          setMealPlan({ meals: mealPlans[0].meals });
-          setLockedDays(mealPlans[0].nights_out || {});
+          const currentPlan = mealPlans[0];
+          setMealPlan({ meals: currentPlan.meals });
+          setLockedDays(currentPlan.nights_out || {});
+          setCurrentMealPlanId(currentPlan.id);
+
+          // Check if the week has expired (past Saturday 11:59pm)
+          const weekEndDate = new Date(currentPlan.week_end_date);
+          weekEndDate.setHours(23, 59, 59, 999); // Set to Saturday 11:59:59pm
+          const now = new Date();
+          const isExpired = now > weekEndDate;
+          setCurrentWeekExpired(isExpired);
+
+          // Lock the meal plan in database if expired and not already locked
+          if (isExpired && !currentPlan.is_locked) {
+            await supabase
+              .from('meal_plans')
+              .update({ is_locked: true })
+              .eq('id', currentPlan.id);
+          }
         } else {
           // Fallback to localStorage for locked days
           const storedLockedDays = localStorage.getItem('weekly_locked_days');
@@ -204,6 +223,13 @@ export default function DashboardPage() {
   async function regenerateMeal(day: string) {
     setRegeneratingDay(day);
     try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error('Not authenticated');
+      }
+
       const response = await fetch('/api/regenerate-meal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -220,13 +246,36 @@ export default function DashboardPage() {
       }
 
       const newMeal = await response.json();
+
+      // Find the existing meal in the database to update
+      const existingMeal = mealPlan.meals.find((m: Meal) => m.day === day);
+      if (existingMeal && existingMeal.id) {
+        // Update the meal in Supabase
+        const { error: updateError } = await supabase
+          .from('meals')
+          .update({
+            name: newMeal.name,
+            description: newMeal.description,
+            ingredients: newMeal.ingredients,
+            instructions: newMeal.instructions,
+            prep_time_minutes: parseInt(newMeal.prepTime) || null,
+            cook_time_minutes: parseInt(newMeal.cookTime) || null,
+            tags: newMeal.tags,
+          })
+          .eq('id', existingMeal.id);
+
+        if (updateError) {
+          console.error('Error updating meal in database:', updateError);
+          throw updateError;
+        }
+      }
+
       const updatedPlan = {
         ...mealPlan,
-        meals: mealPlan.meals.map((m: Meal) => (m.day === day ? newMeal : m)),
+        meals: mealPlan.meals.map((m: Meal) => (m.day === day ? { ...m, ...newMeal } : m)),
       };
 
       setMealPlan(updatedPlan);
-      localStorage.setItem('current_meal_plan', JSON.stringify(updatedPlan));
       setSelectedMeal(null);
     } catch (error) {
       console.error('Error regenerating meal:', error);
@@ -501,7 +550,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-gray-900">This Week&apos;s Plan</h3>
-            {mealPlan && (
+            {mealPlan && !currentWeekExpired && (
               <button
                 onClick={generateNewMealPlan}
                 disabled={generating}
@@ -511,6 +560,29 @@ export default function DashboardPage() {
               </button>
             )}
           </div>
+
+          {currentWeekExpired && mealPlan && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-amber-900 mb-1">This week&apos;s plan has expired</h4>
+                  <p className="text-sm text-amber-800 mb-3">
+                    Your meal plan is now in your history. Ready to plan for next week?
+                  </p>
+                  <button
+                    onClick={generateNewMealPlan}
+                    disabled={generating}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 font-medium disabled:opacity-50 text-sm"
+                  >
+                    {generating ? 'Generating...' : 'Generate Next Week\'s Plan'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {!mealPlan ? (
             <div className="text-center py-12 text-gray-500">
@@ -554,16 +626,18 @@ export default function DashboardPage() {
                               <div className="text-sm text-gray-600">
                                 {meal.prepTime} prep + {meal.cookTime} cook
                               </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  regenerateMeal(meal.day);
-                                }}
-                                disabled={regeneratingDay === meal.day}
-                                className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 whitespace-nowrap"
-                              >
-                                {regeneratingDay === meal.day ? 'Regenerating...' : 'Regenerate'}
-                              </button>
+                              {!currentWeekExpired && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    regenerateMeal(meal.day);
+                                  }}
+                                  disabled={regeneratingDay === meal.day}
+                                  className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 whitespace-nowrap"
+                                >
+                                  {regeneratingDay === meal.day ? 'Regenerating...' : 'Regenerate'}
+                                </button>
+                              )}
                             </div>
                           </div>
                           <div
@@ -823,13 +897,15 @@ export default function DashboardPage() {
                 >
                   {savingRecipe ? 'Saving...' : 'Save to Cookbook'}
                 </button>
-                <button
-                  onClick={() => regenerateMeal(selectedMeal.day)}
-                  disabled={regeneratingDay === selectedMeal.day}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50"
-                >
-                  {regeneratingDay === selectedMeal.day ? 'Regenerating...' : 'Regenerate This Meal'}
-                </button>
+                {!currentWeekExpired && (
+                  <button
+                    onClick={() => regenerateMeal(selectedMeal.day)}
+                    disabled={regeneratingDay === selectedMeal.day}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50"
+                  >
+                    {regeneratingDay === selectedMeal.day ? 'Regenerating...' : 'Regenerate This Meal'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
