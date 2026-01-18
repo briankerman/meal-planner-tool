@@ -102,8 +102,8 @@ Categories for ingredients: produce, meat, seafood, dairy, pantry, spices, froze
 IMPORTANT: Return exactly ${cookingDays} dinner meals spread across the week.`;
 
   const message = await anthropic.messages.create({
-    model: 'claude-3-5-haiku-20241022',
-    max_tokens: 8192,
+    model: 'claude-3-haiku-20240307',
+    max_tokens: 4096,
     messages: [
       {
         role: 'user',
@@ -182,7 +182,7 @@ Format as JSON:
 Categories: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other`;
 
   const message = await anthropic.messages.create({
-    model: 'claude-3-5-haiku-20241022',
+    model: 'claude-3-haiku-20240307',
     max_tokens: 2048,
     messages: [
       {
