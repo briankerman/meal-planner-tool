@@ -220,8 +220,9 @@ export default function DashboardPage() {
     }
   }
 
-  async function regenerateMeal(day: string) {
-    setRegeneratingDay(day);
+  async function regenerateMeal(day: string, mealType: string = 'dinner') {
+    const regenerateKey = `${day}-${mealType}`;
+    setRegeneratingDay(regenerateKey);
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -235,6 +236,7 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           day,
+          mealType,
           preferences: profile,
           existingMeals: mealPlan.meals,
           lockedDays,
@@ -248,7 +250,7 @@ export default function DashboardPage() {
       const newMeal = await response.json();
 
       // Find the existing meal in the database to update
-      const existingMeal = mealPlan.meals.find((m: Meal) => m.day === day);
+      const existingMeal = mealPlan.meals.find((m: Meal) => m.day === day && (m.mealType || 'dinner') === mealType);
       if (existingMeal && existingMeal.id) {
         // Update the meal in Supabase
         const { error: updateError } = await supabase
@@ -261,6 +263,7 @@ export default function DashboardPage() {
             prep_time_minutes: parseInt(newMeal.prepTime) || null,
             cook_time_minutes: parseInt(newMeal.cookTime) || null,
             tags: newMeal.tags,
+            meal_type: mealType,
           })
           .eq('id', existingMeal.id);
 
@@ -272,7 +275,9 @@ export default function DashboardPage() {
 
       const updatedPlan = {
         ...mealPlan,
-        meals: mealPlan.meals.map((m: Meal) => (m.day === day ? { ...m, ...newMeal } : m)),
+        meals: mealPlan.meals.map((m: Meal) =>
+          (m.day === day && (m.mealType || 'dinner') === mealType) ? { ...m, ...newMeal, mealType } : m
+        ),
       };
 
       setMealPlan(updatedPlan);
@@ -601,11 +606,19 @@ export default function DashboardPage() {
                 const dayMeals = mealPlan.meals?.filter((m: Meal) => m.day === day) || [];
                 if (dayMeals.length === 0) return null;
 
+                // Sort meals by type: breakfast, lunch, dinner
+                const mealTypeOrder: Record<string, number> = { breakfast: 1, lunch: 2, dinner: 3 };
+                const sortedDayMeals = [...dayMeals].sort((a, b) => {
+                  const aType = a.mealType || 'dinner';
+                  const bType = b.mealType || 'dinner';
+                  return (mealTypeOrder[aType] || 3) - (mealTypeOrder[bType] || 3);
+                });
+
                 return (
                   <div key={day} className="border-b border-gray-200 pb-4 last:border-0">
                     <h4 className="text-md font-semibold text-gray-700 mb-3">{day}</h4>
                     <div className="space-y-3">
-                      {dayMeals.map((meal: Meal, idx: number) => (
+                      {sortedDayMeals.map((meal: Meal, idx: number) => (
                         <div
                           key={idx}
                           className="border border-gray-200 rounded-lg p-4 hover:border-blue-400 transition-colors"
@@ -616,7 +629,13 @@ export default function DashboardPage() {
                               className="flex-1 cursor-pointer"
                             >
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-semibold text-blue-600 uppercase">
+                                <span className={`text-xs font-semibold uppercase px-2 py-0.5 rounded ${
+                                  meal.mealType === 'breakfast'
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : meal.mealType === 'lunch'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-blue-100 text-blue-700'
+                                }`}>
                                   {meal.mealType || 'dinner'}
                                 </span>
                               </div>
@@ -630,12 +649,12 @@ export default function DashboardPage() {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    regenerateMeal(meal.day);
+                                    regenerateMeal(meal.day, meal.mealType || 'dinner');
                                   }}
-                                  disabled={regeneratingDay === meal.day}
+                                  disabled={regeneratingDay === `${meal.day}-${meal.mealType || 'dinner'}`}
                                   className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 whitespace-nowrap"
                                 >
-                                  {regeneratingDay === meal.day ? 'Regenerating...' : 'Regenerate'}
+                                  {regeneratingDay === `${meal.day}-${meal.mealType || 'dinner'}` ? 'Regenerating...' : 'Regenerate'}
                                 </button>
                               )}
                             </div>
@@ -899,11 +918,11 @@ export default function DashboardPage() {
                 </button>
                 {!currentWeekExpired && (
                   <button
-                    onClick={() => regenerateMeal(selectedMeal.day)}
-                    disabled={regeneratingDay === selectedMeal.day}
+                    onClick={() => regenerateMeal(selectedMeal.day, selectedMeal.mealType || 'dinner')}
+                    disabled={regeneratingDay === `${selectedMeal.day}-${selectedMeal.mealType || 'dinner'}`}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50"
                   >
-                    {regeneratingDay === selectedMeal.day ? 'Regenerating...' : 'Regenerate This Meal'}
+                    {regeneratingDay === `${selectedMeal.day}-${selectedMeal.mealType || 'dinner'}` ? 'Regenerating...' : 'Regenerate This Meal'}
                   </button>
                 )}
               </div>

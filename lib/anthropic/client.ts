@@ -22,6 +22,17 @@ export async function generateMealPlan(preferences: {
   const cookingDays = preferences.dinner_days_per_week;
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+  // Calculate total meals needed
+  const breakfastMeals = preferences.breakfast_enabled ? 7 : 0;
+  const lunchMeals = preferences.lunch_enabled ? 7 : 0;
+  const dinnerMeals = cookingDays;
+
+  // Build meal type context
+  const mealTypesNeeded = [];
+  if (preferences.breakfast_enabled) mealTypesNeeded.push('breakfast (7 days)');
+  if (preferences.lunch_enabled) mealTypesNeeded.push('lunch (7 days)');
+  mealTypesNeeded.push(`dinner (${dinnerMeals} days)`);
+
   // Build weekly context section if provided
   const weeklyContextSection = preferences.weekly_context
     ? `
@@ -46,7 +57,7 @@ For SIMPLE/THEME nights (taco night, pasta night, pizza night, etc.):
   const prompt = `Generate a weekly meal plan based on these preferences:
 - Household: ${preferences.num_adults} adults, ${preferences.num_children} children
 - Age ranges: ${preferences.child_age_ranges?.join(', ') || 'None'}
-- Dinners needed: ${cookingDays} per week
+- Meals needed: ${mealTypesNeeded.join(', ')}
 - Cuisine preferences: ${preferences.cuisine_preferences?.join(', ') || 'Any'}
 - Meal styles: ${preferences.meal_style_preferences?.join(', ') || 'Any'}
 - Allergies/restrictions: ${preferences.allergies?.join(', ') || 'None'}
@@ -57,8 +68,23 @@ ${preferences.plans_leftovers
   ? `Plan meals to create intentional leftovers where practical. Mark leftover-friendly meals with a "leftovers" tag.`
   : ''}
 
-Generate EXACTLY ${cookingDays} dinner meals for the week. Spread them across the week sensibly.
+MEAL TYPE REQUIREMENTS:
+${preferences.breakfast_enabled ? '- Generate 7 BREAKFAST meals (one for each day of the week)\n' : ''}${preferences.lunch_enabled ? '- Generate 7 LUNCH meals (one for each day of the week)\n' : ''}- Generate EXACTLY ${cookingDays} DINNER meals (spread across the week sensibly)
 
+BREAKFAST GUIDELINES (if enabled):
+- Keep it practical and family-friendly
+- Quick options for busy mornings (5-15 min prep)
+- Variety: include both quick (cereal, yogurt parfait) and weekend options (pancakes, eggs)
+- Batch-friendly options (overnight oats, muffins)
+
+LUNCH GUIDELINES (if enabled):
+- Mix of hot and cold options
+- Lunch-box friendly for kids if applicable
+- Leftovers from dinner can be suggested
+- Quick to prepare (10-20 min)
+- Sandwich, salad, and warm meal variety
+
+DINNER GUIDELINES:
 For FULL RECIPES (most meals), provide:
 1. Meal name
 2. Brief description (1 sentence)
@@ -82,7 +108,7 @@ Format as JSON:
   "meals": [
     {
       "day": "Monday",
-      "mealType": "dinner",
+      "mealType": "breakfast",
       "name": "Meal Name",
       "description": "Brief description",
       "prepTime": "15 min",
@@ -99,11 +125,11 @@ Format as JSON:
 }
 
 Categories for ingredients: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other
-IMPORTANT: Return exactly ${cookingDays} dinner meals spread across the week.`;
+IMPORTANT: Return meals in this order - all breakfasts first (Mon-Sun), then all lunches (Mon-Sun), then all dinners.`;
 
   const message = await anthropic.messages.create({
     model: 'claude-3-haiku-20240307',
-    max_tokens: 4096,
+    max_tokens: 8192, // Increased for breakfast + lunch + dinner
     messages: [
       {
         role: 'user',
@@ -123,6 +149,7 @@ IMPORTANT: Return exactly ${cookingDays} dinner meals spread across the week.`;
 
 export async function regenerateSingleMeal(params: {
   day: string;
+  mealType?: string;
   preferences: {
     num_adults: number;
     num_children: number;
@@ -135,9 +162,33 @@ export async function regenerateSingleMeal(params: {
   existingMealNames: string[];
   lockedDays?: Record<string, string>;
 }) {
-  const { day, preferences, existingMealNames, lockedDays = {} } = params;
+  const { day, mealType = 'dinner', preferences, existingMealNames, lockedDays = {} } = params;
 
-  const prompt = `Generate ONE dinner recipe for ${day} based on these preferences:
+  // Build meal type specific guidelines
+  let mealTypeGuidelines = '';
+  if (mealType === 'breakfast') {
+    mealTypeGuidelines = `
+BREAKFAST GUIDELINES:
+- Keep it practical and family-friendly
+- Quick options for busy mornings (5-15 min prep)
+- Consider both quick options and special breakfast ideas
+- Make it appealing for the whole family`;
+  } else if (mealType === 'lunch') {
+    mealTypeGuidelines = `
+LUNCH GUIDELINES:
+- Mix of hot and cold options
+- Lunch-box friendly for kids if applicable
+- Quick to prepare (10-20 min)
+- Sandwich, salad, and warm meal variety`;
+  } else {
+    mealTypeGuidelines = `
+DINNER GUIDELINES:
+- Family-friendly and satisfying
+- Balance of nutrition and taste
+- Consider preparation time and complexity`;
+  }
+
+  const prompt = `Generate ONE ${mealType} recipe for ${day} based on these preferences:
 - Household: ${preferences.num_adults} adults, ${preferences.num_children} children
 - Age ranges: ${preferences.child_age_ranges?.join(', ') || 'None'}
 - Plans for leftovers: ${preferences.plans_leftovers ? 'Yes' : 'No'}
@@ -147,7 +198,9 @@ export async function regenerateSingleMeal(params: {
 
 IMPORTANT: Avoid these meals already planned this week: ${existingMealNames.join(', ')}
 
-${preferences.plans_leftovers
+${mealTypeGuidelines}
+
+${preferences.plans_leftovers && mealType === 'dinner'
   ? 'Consider if this meal can create or use leftovers from other meals this week. Mark with "leftovers" tag if applicable.'
   : ''}
 
@@ -162,6 +215,7 @@ Provide:
 Format as JSON:
 {
   "day": "${day}",
+  "mealType": "${mealType}",
   "name": "Meal Name",
   "description": "Brief description",
   "prepTime": "15 min",
