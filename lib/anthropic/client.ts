@@ -153,9 +153,14 @@ ${preferences.breakfast_enabled ? `- BREAKFAST: Create ${breakfastMeals} unique 
 \n` : ''}- DINNER: Create ${cookingDays} unique recipes, assign to specific days of week (leave other days without dinner)
 - You MUST assign meals to specific days - don't just list recipes without day assignments`;
 
+  // Use Sonnet for larger meal plans (breakfast + lunch + dinner), Haiku for simple dinner-only
+  const needsLargeOutput = preferences.breakfast_enabled || preferences.lunch_enabled;
+  const model = needsLargeOutput ? 'claude-3-5-sonnet-20241022' : 'claude-3-haiku-20240307';
+  const maxTokens = needsLargeOutput ? 8192 : 4096;
+
   const message = await anthropic.messages.create({
-    model: 'claude-3-haiku-20240307',
-    max_tokens: 4096, // Haiku max is 4096
+    model,
+    max_tokens: maxTokens,
     messages: [
       {
         role: 'user',
