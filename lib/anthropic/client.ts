@@ -155,7 +155,7 @@ ${preferences.breakfast_enabled ? `- BREAKFAST: Create ${breakfastMeals} unique 
 
   const message = await anthropic.messages.create({
     model: 'claude-3-haiku-20240307',
-    max_tokens: 8192, // Increased for breakfast + lunch + dinner
+    max_tokens: 4096, // Haiku max is 4096
     messages: [
       {
         role: 'user',
