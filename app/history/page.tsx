@@ -25,6 +25,7 @@ interface Meal {
   prep_time_minutes: number | null;
   cook_time_minutes: number | null;
   tags: string[];
+  user_notes: string | null;
 }
 
 export default function HistoryPage() {
@@ -33,6 +34,9 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<MealPlan | null>(null);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
+  const [editingNotes, setEditingNotes] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
 
   const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -95,6 +99,39 @@ export default function HistoryPage() {
     const start = new Date(plan.week_start_date);
     const end = new Date(plan.week_end_date);
     return now >= start && now <= end;
+  }
+
+  async function saveNoteToMeal(mealId: string, notes: string) {
+    setSavingNote(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('meals')
+        .update({ user_notes: notes })
+        .eq('id', mealId);
+
+      if (error) throw error;
+
+      // Update local state
+      setMealPlans(prev => prev.map(plan => ({
+        ...plan,
+        meals: plan.meals.map(meal =>
+          meal.id === mealId ? { ...meal, user_notes: notes } : meal
+        )
+      })));
+
+      if (selectedMeal?.id === mealId) {
+        setSelectedMeal({ ...selectedMeal, user_notes: notes });
+      }
+
+      setEditingNotes(null);
+      setNoteText('');
+    } catch (error) {
+      console.error('Error saving note:', error);
+      alert('Failed to save note. Please try again.');
+    } finally {
+      setSavingNote(false);
+    }
   }
 
   if (loading) {
@@ -170,22 +207,95 @@ export default function HistoryPage() {
                             {dayMeals.map((meal) => (
                               <div
                                 key={meal.id}
-                                className="border border-gray-200 rounded-lg p-4 hover:border-blue-400 transition-colors cursor-pointer"
-                                onClick={() => setSelectedMeal(meal)}
+                                className="border border-gray-200 rounded-lg p-4"
                               >
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-xs font-semibold text-blue-600 uppercase">
-                                    {meal.meal_type}
-                                  </span>
-                                </div>
-                                <h5 className="text-lg font-semibold text-gray-900">{meal.name}</h5>
-                                <p className="text-gray-600 text-sm mt-2">{meal.description}</p>
-                                <div className="flex gap-2 flex-wrap mt-3">
-                                  {meal.tags?.map((tag: string) => (
-                                    <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                                      {tag}
+                                <div
+                                  className="cursor-pointer"
+                                  onClick={() => setSelectedMeal(meal)}
+                                >
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-xs font-semibold text-blue-600 uppercase">
+                                      {meal.meal_type}
                                     </span>
-                                  ))}
+                                  </div>
+                                  <h5 className="text-lg font-semibold text-gray-900">{meal.name}</h5>
+                                  <p className="text-gray-600 text-sm mt-2">{meal.description}</p>
+                                  <div className="flex gap-2 flex-wrap mt-3">
+                                    {meal.tags?.map((tag: string) => (
+                                      <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Notes section */}
+                                <div className="mt-4 pt-3 border-t border-gray-200">
+                                  {editingNotes === meal.id ? (
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Your Notes
+                                      </label>
+                                      <textarea
+                                        value={noteText}
+                                        onChange={(e) => setNoteText(e.target.value)}
+                                        placeholder="How did this meal turn out? Did your family enjoy it? Would you make it again?"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                        rows={3}
+                                      />
+                                      <div className="flex gap-2 mt-2">
+                                        <button
+                                          onClick={() => saveNoteToMeal(meal.id, noteText)}
+                                          disabled={savingNote}
+                                          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 font-medium disabled:opacity-50"
+                                        >
+                                          {savingNote ? 'Saving...' : 'Save Note'}
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setEditingNotes(null);
+                                            setNoteText('');
+                                          }}
+                                          className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 font-medium"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                      {meal.user_notes ? (
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="flex-1">
+                                            <div className="text-xs font-medium text-gray-500 uppercase mb-1">Your Notes</div>
+                                            <p className="text-sm text-gray-700 italic">"{meal.user_notes}"</p>
+                                          </div>
+                                          <button
+                                            onClick={() => {
+                                              setEditingNotes(meal.id);
+                                              setNoteText(meal.user_notes || '');
+                                            }}
+                                            className="text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
+                                          >
+                                            Edit Note
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          onClick={() => {
+                                            setEditingNotes(meal.id);
+                                            setNoteText('');
+                                          }}
+                                          className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                          </svg>
+                                          Add Note
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -257,6 +367,13 @@ export default function HistoryPage() {
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {selectedMeal.user_notes && (
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-xs font-semibold text-blue-700 uppercase mb-1">Your Notes</div>
+                  <p className="text-sm text-blue-900 italic">"{selectedMeal.user_notes}"</p>
                 </div>
               )}
             </div>

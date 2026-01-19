@@ -37,6 +37,8 @@ export default function OnboardingPage() {
   const [lockedDays, setLockedDays] = useState<Record<string, string>>({});
   const [breakfastEnabled, setBreakfastEnabled] = useState(false);
   const [lunchEnabled, setLunchEnabled] = useState(false);
+  const [breakfastDaysPerWeek, setBreakfastDaysPerWeek] = useState(5);
+  const [lunchDaysPerWeek, setLunchDaysPerWeek] = useState(5);
 
   const steps: Step[] = ['household', 'routine', 'preferences', 'restrictions', 'staples'];
   const stepIndex = steps.indexOf(currentStep);
@@ -82,6 +84,8 @@ export default function OnboardingPage() {
           dinner_days_per_week: dinnerDaysPerWeek,
           breakfast_enabled: breakfastEnabled,
           lunch_enabled: lunchEnabled,
+          breakfast_days_per_week: breakfastEnabled ? breakfastDaysPerWeek : null,
+          lunch_days_per_week: lunchEnabled ? lunchDaysPerWeek : null,
           plans_leftovers: plansLeftovers,
           cuisine_preferences: cuisinePreferences.length > 0 ? cuisinePreferences : null,
           meal_style_preferences: mealStylePreferences.length > 0 ? mealStylePreferences : null,
@@ -226,27 +230,85 @@ export default function OnboardingPage() {
                 Which meals would you like meal plans for?
               </label>
               <p className="text-sm text-gray-600 mb-3">
-                Select which meals to include in your weekly meal plan. This helps create a complete grocery list.
+                Select which meals to include in your weekly meal plan. Choose how many unique recipes per week - we'll suggest meal prep options.
               </p>
               <div className="space-y-3">
-                <label className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    checked={breakfastEnabled}
-                    onChange={(e) => setBreakfastEnabled(e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <span className="ml-3 text-gray-700 font-medium">Breakfast</span>
-                </label>
-                <label className="flex items-center p-3 border rounded-md cursor-pointer hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    checked={lunchEnabled}
-                    onChange={(e) => setLunchEnabled(e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <span className="ml-3 text-gray-700 font-medium">Lunch</span>
-                </label>
+                <div className="border rounded-md p-3">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={breakfastEnabled}
+                      onChange={(e) => setBreakfastEnabled(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-3 text-gray-700 font-medium">Breakfast</span>
+                  </label>
+                  {breakfastEnabled && (
+                    <div className="mt-3 ml-7 pl-3 border-l-2 border-blue-200">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        How many unique breakfasts per week?
+                      </label>
+                      <p className="text-xs text-gray-500 mb-2">
+                        We'll create meal prep-friendly recipes you can batch cook and enjoy multiple days
+                      </p>
+                      <div className="flex gap-2">
+                        {[2, 3, 4, 5, 7].map(num => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setBreakfastDaysPerWeek(num)}
+                            className={`px-3 py-1.5 text-sm rounded-md border ${
+                              breakfastDaysPerWeek === num
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border rounded-md p-3">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={lunchEnabled}
+                      onChange={(e) => setLunchEnabled(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-3 text-gray-700 font-medium">Lunch</span>
+                  </label>
+                  {lunchEnabled && (
+                    <div className="mt-3 ml-7 pl-3 border-l-2 border-green-200">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        How many unique lunches per week?
+                      </label>
+                      <p className="text-xs text-gray-500 mb-2">
+                        We'll create meal prep-friendly recipes you can batch cook and enjoy multiple days
+                      </p>
+                      <div className="flex gap-2">
+                        {[2, 3, 4, 5, 7].map(num => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setLunchDaysPerWeek(num)}
+                            className={`px-3 py-1.5 text-sm rounded-md border ${
+                              lunchDaysPerWeek === num
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center p-3 border rounded-md bg-blue-50 border-blue-200">
                   <input
                     type="checkbox"
