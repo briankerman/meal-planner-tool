@@ -169,32 +169,13 @@ ${preferences.plans_leftovers
   ? `Plan meals to create intentional leftovers where practical. Mark leftover-friendly meals with a "leftovers" tag.`
   : ''}
 
-MEAL TYPE REQUIREMENTS AND MEAL PREP STRATEGY:
-${preferences.breakfast_enabled ? `- BREAKFAST: Create ${breakfastMeals} unique recipes, then assign them to all 7 days (repeating as needed for meal prep)
-  * Example: If ${breakfastMeals} recipes, assign each to 1-2 days throughout the week
-  * Focus on batch-friendly recipes: overnight oats, egg muffins, breakfast burritos, baked oatmeal
-  * Each recipe should include "Makes X servings" in description to indicate batch size
-  * Add "meal-prep" tag to batch-friendly recipes
-\n` : ''}${preferences.lunch_enabled ? `- LUNCH: Create ${lunchMeals} unique recipes, then assign them to all 7 days (repeating as needed for meal prep)
-  * Example: If ${lunchMeals} recipes, assign each to 1-2 days throughout the week
-  * Focus on meal prep: mason jar salads, grain bowls, soups, pasta salads, wraps
-  * Each recipe should include batch cooking quantities
-  * Add "meal-prep" tag to batch-friendly recipes
-\n` : ''}- DINNER: Generate EXACTLY ${cookingDays} unique meals (spread across the week sensibly)
+MEAL TYPE REQUIREMENTS:
+${preferences.breakfast_enabled ? `- BREAKFAST: Create EXACTLY ${breakfastMeals} unique meal-prep breakfast recipes (batch cooking friendly)
+` : ''}${preferences.lunch_enabled ? `- LUNCH: Create EXACTLY ${lunchMeals} unique meal-prep lunch recipes (make-ahead friendly)
+` : ''}- DINNER: Create EXACTLY ${cookingDays} unique dinner recipes
 
-${preferences.breakfast_enabled ? `BREAKFAST MEAL PREP GUIDELINES:
-- Design recipes for batch cooking on prep day (usually Sunday)
-- Include storage instructions: "Store in refrigerator for up to 5 days" or "Freeze for up to 2 weeks"
-- Include reheating instructions where needed
-- Scale ingredients to make enough for multiple servings
-- Examples: Overnight oats (make 5 jars), egg muffins (batch of 12), breakfast burritos (wrap and freeze 6-8)
-\n` : ''}
-${preferences.lunch_enabled ? `LUNCH MEAL PREP GUIDELINES:
-- Design recipes that hold up well for 3-5 days
-- Include assembly/storage instructions
-- Consider: grain bowls, salads (dressing separate), soups, wraps, leftovers from dinner
-- Make lunch-box friendly if kids in household
-\n` : ''}
+KEEP RECIPES CONCISE - limit to 5-7 ingredients and 3-5 instruction steps per recipe.
+
 
 DINNER GUIDELINES:
 For FULL RECIPES (most meals), provide:
@@ -238,15 +219,12 @@ Format as JSON:
 
 Categories for ingredients: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other
 
-CRITICAL - MEAL ASSIGNMENT RULES:
-${preferences.breakfast_enabled ? `- BREAKFAST: Create ${breakfastMeals} unique recipes, assign them across ALL 7 days
-  * Distribute evenly: if 3 recipes, might be Mon/Tue (recipe 1), Wed/Thu (recipe 2), Fri/Sat/Sun (recipe 3)
-  * Each recipe name should indicate it's for multiple days if meal-prep
-\n` : ''}${preferences.lunch_enabled ? `- LUNCH: Create ${lunchMeals} unique recipes, assign them across ALL 7 days
-  * Distribute evenly: if 3 recipes, might be Mon/Tue (recipe 1), Wed/Thu (recipe 2), Fri/Sat/Sun (recipe 3)
-  * Each recipe name should indicate it's for multiple days if meal-prep
-\n` : ''}- DINNER: Create ${cookingDays} unique recipes, assign to specific days of week (leave other days without dinner)
-- You MUST assign meals to specific days - don't just list recipes without day assignments`;
+CRITICAL RULES:
+${preferences.breakfast_enabled ? `- Output exactly ${breakfastMeals} breakfast recipes with mealType "breakfast"
+` : ''}${preferences.lunch_enabled ? `- Output exactly ${lunchMeals} lunch recipes with mealType "lunch"
+` : ''}- Output exactly ${cookingDays} dinner recipes with mealType "dinner"
+- Assign each meal to a specific day of the week
+- Keep responses compact to fit within limits`;
 
   // Use Sonnet for larger meal plans (breakfast + lunch + dinner), Haiku for simple dinner-only
   const needsLargeOutput = preferences.breakfast_enabled || preferences.lunch_enabled;
