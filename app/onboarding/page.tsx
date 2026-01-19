@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
@@ -23,6 +23,8 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>('household');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
   // Form state
   const [numAdults, setNumAdults] = useState(2);
   const [numChildren, setNumChildren] = useState(0);
@@ -43,6 +45,52 @@ export default function OnboardingPage() {
   const steps: Step[] = ['household', 'routine', 'preferences', 'restrictions', 'staples'];
   const stepIndex = steps.indexOf(currentStep);
   const progress = ((stepIndex + 1) / steps.length) * 100;
+
+  useEffect(() => {
+    async function loadExistingProfile() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+          router.push('/login');
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (profile && profile.onboarding_completed) {
+          // User is editing existing preferences
+          setIsEditing(true);
+          setNumAdults(profile.num_adults || 2);
+          setNumChildren(profile.num_children || 0);
+          setChildAgeRanges(profile.child_age_ranges || []);
+          setShoppingDay(profile.shopping_day || 'Saturday');
+          setDinnerDaysPerWeek(profile.dinner_days_per_week || 5);
+          setPlansLeftovers(profile.plans_leftovers ?? true);
+          setCuisinePreferences(profile.cuisine_preferences || []);
+          setMealStylePreferences(profile.meal_style_preferences || []);
+          setAllergies(profile.allergies || []);
+          const staples = profile.staple_meals || [];
+          setStapleMeals([...staples, '', '', ''].slice(0, 3));
+          setBreakfastEnabled(profile.breakfast_enabled || false);
+          setLunchEnabled(profile.lunch_enabled || false);
+          setBreakfastDaysPerWeek(profile.breakfast_days_per_week || 5);
+          setLunchDaysPerWeek(profile.lunch_days_per_week || 5);
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      } finally {
+        setInitialLoading(false);
+      }
+    }
+
+    loadExistingProfile();
+  }, [router]);
 
   function toggleArrayItem<T>(arr: T[], item: T): T[] {
     return arr.includes(item) ? arr.filter(i => i !== item) : [...arr, item];
@@ -461,9 +509,29 @@ export default function OnboardingPage() {
     }
   }
 
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-2xl mx-auto">
+        {/* Header for editing mode */}
+        {isEditing && (
+          <div className="mb-4">
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+            >
+              ← Back to Dashboard
+            </button>
+          </div>
+        )}
+
         {/* Progress bar */}
         <div className="mb-8">
           <div className="flex justify-between text-sm text-gray-600 mb-2">
