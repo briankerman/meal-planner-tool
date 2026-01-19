@@ -4,6 +4,74 @@ export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// Helper to parse JSON from Claude response with repair for truncated responses
+function parseClaudeJson(text: string, stopReason?: string): any {
+  console.log('Claude response stop_reason:', stopReason, 'length:', text.length);
+
+  let jsonText = text.trim();
+
+  // Find the first { and last } to extract JSON
+  const firstBrace = jsonText.indexOf('{');
+  const lastBrace = jsonText.lastIndexOf('}');
+
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+  }
+
+  try {
+    return JSON.parse(jsonText);
+  } catch (parseError) {
+    // If JSON is truncated, try to repair it
+    console.error('JSON parse error, attempting repair...');
+
+    // Count open brackets
+    let openBraces = 0;
+    let openBrackets = 0;
+    for (const char of jsonText) {
+      if (char === '{') openBraces++;
+      if (char === '}') openBraces--;
+      if (char === '[') openBrackets++;
+      if (char === ']') openBrackets--;
+    }
+
+    let repairedJson = jsonText;
+
+    // Find last complete element and truncate there
+    const lastCompleteIndex = Math.max(
+      repairedJson.lastIndexOf('},'),
+      repairedJson.lastIndexOf('}]'),
+      repairedJson.lastIndexOf('"]'),
+      repairedJson.lastIndexOf('"}')
+    );
+
+    if (lastCompleteIndex > 0 && lastCompleteIndex < repairedJson.length - 10) {
+      repairedJson = repairedJson.substring(0, lastCompleteIndex + 1);
+      // Recount after truncation
+      openBraces = 0;
+      openBrackets = 0;
+      for (const char of repairedJson) {
+        if (char === '{') openBraces++;
+        if (char === '}') openBraces--;
+        if (char === '[') openBrackets++;
+        if (char === ']') openBrackets--;
+      }
+    }
+
+    // Close any open brackets
+    for (let i = 0; i < openBrackets; i++) repairedJson += ']';
+    for (let i = 0; i < openBraces; i++) repairedJson += '}';
+
+    try {
+      const result = JSON.parse(repairedJson);
+      console.log('JSON repair successful, meals count:', result.meals?.length);
+      return result;
+    } catch (repairError) {
+      console.error('JSON repair failed');
+      throw parseError;
+    }
+  }
+}
+
 export async function generateMealPlan(preferences: {
   num_adults: number;
   num_children: number;
@@ -172,18 +240,7 @@ ${preferences.breakfast_enabled ? `- BREAKFAST: Create ${breakfastMeals} unique 
 
   const content = message.content[0];
   if (content.type === 'text') {
-    // Try to extract JSON from response if model added extra text
-    let jsonText = content.text.trim();
-
-    // Find the first { and last } to extract JSON
-    const firstBrace = jsonText.indexOf('{');
-    const lastBrace = jsonText.lastIndexOf('}');
-
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      jsonText = jsonText.substring(firstBrace, lastBrace + 1);
-    }
-
-    return JSON.parse(jsonText);
+    return parseClaudeJson(content.text, message.stop_reason);
   }
 
   throw new Error('Unexpected response format from Claude API');
@@ -291,18 +348,7 @@ Categories: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other
 
   const content = message.content[0];
   if (content.type === 'text') {
-    // Try to extract JSON from response if model added extra text
-    let jsonText = content.text.trim();
-
-    // Find the first { and last } to extract JSON
-    const firstBrace = jsonText.indexOf('{');
-    const lastBrace = jsonText.lastIndexOf('}');
-
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      jsonText = jsonText.substring(firstBrace, lastBrace + 1);
-    }
-
-    return JSON.parse(jsonText);
+    return parseClaudeJson(content.text, message.stop_reason);
   }
 
   throw new Error('Unexpected response format from Claude API');
