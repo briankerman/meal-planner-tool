@@ -10,12 +10,10 @@ function parseClaudeJson(text: string, stopReason?: string): any {
 
   let jsonText = text.trim();
 
-  // Find the first { and last } to extract JSON
+  // Find the first { to start JSON
   const firstBrace = jsonText.indexOf('{');
-  const lastBrace = jsonText.lastIndexOf('}');
-
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+  if (firstBrace !== -1) {
+    jsonText = jsonText.substring(firstBrace);
   }
 
   try {
@@ -24,7 +22,59 @@ function parseClaudeJson(text: string, stopReason?: string): any {
     // If JSON is truncated, try to repair it
     console.error('JSON parse error, attempting repair...');
 
-    // Count open brackets
+    // Strategy: find the last complete meal object and truncate there
+    // Look for pattern: },"tags":[...]} or similar endings of a meal object
+    const mealEndPattern = /\}\s*\]\s*\}\s*,?\s*$/;
+    const mealsArrayPattern = /"meals"\s*:\s*\[/;
+
+    // Find where the meals array starts
+    const mealsMatch = jsonText.match(mealsArrayPattern);
+    if (!mealsMatch || mealsMatch.index === undefined) {
+      console.error('Could not find meals array');
+      throw parseError;
+    }
+
+    // Find all complete meal objects (ending with }] for tags array then } for meal object)
+    // Each meal ends with: ...],"tags":[...]}
+    let lastValidEnd = -1;
+    let searchFrom = mealsMatch.index;
+
+    // Find each occurrence of }] which ends a tags array, then } which ends the meal
+    const tagEndRegex = /\]\s*\}/g;
+    let match;
+    while ((match = tagEndRegex.exec(jsonText)) !== null) {
+      // Check if this could be end of a meal object
+      lastValidEnd = match.index + match[0].length;
+    }
+
+    if (lastValidEnd > searchFrom) {
+      // Truncate to last valid meal end
+      let repairedJson = jsonText.substring(0, lastValidEnd);
+
+      // Count remaining open brackets
+      let openBraces = 0;
+      let openBrackets = 0;
+      for (const char of repairedJson) {
+        if (char === '{') openBraces++;
+        if (char === '}') openBraces--;
+        if (char === '[') openBrackets++;
+        if (char === ']') openBrackets--;
+      }
+
+      // Close the meals array and root object
+      for (let i = 0; i < openBrackets; i++) repairedJson += ']';
+      for (let i = 0; i < openBraces; i++) repairedJson += '}';
+
+      try {
+        const result = JSON.parse(repairedJson);
+        console.log('JSON repair successful, meals count:', result.meals?.length);
+        return result;
+      } catch (repairError2) {
+        console.error('JSON repair attempt 1 failed, trying simpler approach');
+      }
+    }
+
+    // Simpler fallback: just close all open brackets
     let openBraces = 0;
     let openBrackets = 0;
     for (const char of jsonText) {
@@ -35,38 +85,15 @@ function parseClaudeJson(text: string, stopReason?: string): any {
     }
 
     let repairedJson = jsonText;
-
-    // Find last complete element and truncate there
-    const lastCompleteIndex = Math.max(
-      repairedJson.lastIndexOf('},'),
-      repairedJson.lastIndexOf('}]'),
-      repairedJson.lastIndexOf('"]'),
-      repairedJson.lastIndexOf('"}')
-    );
-
-    if (lastCompleteIndex > 0 && lastCompleteIndex < repairedJson.length - 10) {
-      repairedJson = repairedJson.substring(0, lastCompleteIndex + 1);
-      // Recount after truncation
-      openBraces = 0;
-      openBrackets = 0;
-      for (const char of repairedJson) {
-        if (char === '{') openBraces++;
-        if (char === '}') openBraces--;
-        if (char === '[') openBrackets++;
-        if (char === ']') openBrackets--;
-      }
-    }
-
-    // Close any open brackets
     for (let i = 0; i < openBrackets; i++) repairedJson += ']';
     for (let i = 0; i < openBraces; i++) repairedJson += '}';
 
     try {
       const result = JSON.parse(repairedJson);
-      console.log('JSON repair successful, meals count:', result.meals?.length);
+      console.log('JSON repair (simple) successful, meals count:', result.meals?.length);
       return result;
     } catch (repairError) {
-      console.error('JSON repair failed');
+      console.error('All JSON repair attempts failed');
       throw parseError;
     }
   }
