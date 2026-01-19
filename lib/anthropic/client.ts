@@ -99,6 +99,74 @@ function parseClaudeJson(text: string, stopReason?: string): any {
   }
 }
 
+// Generate meals for a single meal type
+async function generateMealsForType(
+  mealType: 'breakfast' | 'lunch' | 'dinner',
+  count: number,
+  preferences: any
+): Promise<any[]> {
+  const servings = preferences.num_adults + preferences.num_children;
+
+  const typeGuidelines: Record<string, string> = {
+    breakfast: `Create ${count} unique BREAKFAST recipes for meal prep.
+- Focus on batch-friendly options: overnight oats, egg muffins, breakfast burritos, smoothie packs
+- Each should be make-ahead friendly
+- Include storage/reheating tips in instructions`,
+    lunch: `Create ${count} unique LUNCH recipes for meal prep.
+- Focus on portable, make-ahead options: grain bowls, salads, wraps, soups
+- Should hold up well for 3-5 days in fridge
+- Good for taking to work/school`,
+    dinner: `Create ${count} unique DINNER recipes.
+${preferences.weekly_context ? `Consider user's context: "${preferences.weekly_context}"` : ''}
+${preferences.plans_leftovers ? '- Plan meals that create intentional leftovers when practical. Add "leftovers" tag.' : ''}`
+  };
+
+  const prompt = `Generate exactly ${count} ${mealType} recipes as JSON.
+
+Preferences:
+- Household: ${preferences.num_adults} adults, ${preferences.num_children} children
+- Cuisine: ${preferences.cuisine_preferences?.join(', ') || 'Any'}
+- Allergies: ${preferences.allergies?.join(', ') || 'None'}
+
+${typeGuidelines[mealType]}
+
+KEEP RECIPES CONCISE - 5-6 ingredients, 3-4 instruction steps max.
+
+Output JSON format:
+{
+  "meals": [
+    {
+      "day": "Monday",
+      "mealType": "${mealType}",
+      "name": "Recipe Name",
+      "description": "Brief description",
+      "prepTime": "10 min",
+      "cookTime": "20 min",
+      "servings": ${servings},
+      "ingredients": [{"name": "item", "amount": "1", "unit": "cup", "category": "produce"}],
+      "instructions": ["Step 1", "Step 2"],
+      "tags": ["tag1"]
+    }
+  ]
+}
+
+Assign each meal to a different day. Categories: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other`;
+
+  const message = await anthropic.messages.create({
+    model: 'claude-3-haiku-20240307',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: prompt }],
+    system: 'You are a meal planning JSON generator. Output ONLY valid JSON. Start with { and end with }.',
+  });
+
+  const content = message.content[0];
+  if (content.type === 'text') {
+    const parsed = parseClaudeJson(content.text, message.stop_reason);
+    return parsed.meals || [];
+  }
+  return [];
+}
+
 export async function generateMealPlan(preferences: {
   num_adults: number;
   num_children: number;
@@ -117,138 +185,30 @@ export async function generateMealPlan(preferences: {
   weekly_context?: string;
 }) {
   const cookingDays = preferences.dinner_days_per_week;
-  const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-  // Calculate total unique meals needed (for meal prep)
   const breakfastMeals = preferences.breakfast_enabled ? (preferences.breakfast_days_per_week || 5) : 0;
   const lunchMeals = preferences.lunch_enabled ? (preferences.lunch_days_per_week || 5) : 0;
-  const dinnerMeals = cookingDays;
 
-  // Build meal type context
-  const mealTypesNeeded = [];
-  if (preferences.breakfast_enabled) {
-    mealTypesNeeded.push(`${breakfastMeals} unique breakfast recipes (meal prep-friendly)`);
+  // Generate each meal type separately to avoid token limits
+  const allMeals: any[] = [];
+
+  // Generate meals in parallel for speed
+  const promises: Promise<any[]>[] = [];
+
+  if (breakfastMeals > 0) {
+    promises.push(generateMealsForType('breakfast', breakfastMeals, preferences));
   }
-  if (preferences.lunch_enabled) {
-    mealTypesNeeded.push(`${lunchMeals} unique lunch recipes (meal prep-friendly)`);
+  if (lunchMeals > 0) {
+    promises.push(generateMealsForType('lunch', lunchMeals, preferences));
   }
-  mealTypesNeeded.push(`${dinnerMeals} dinner meals`);
+  promises.push(generateMealsForType('dinner', cookingDays, preferences));
 
-  // Build weekly context section if provided
-  const weeklyContextSection = preferences.weekly_context
-    ? `
-USER'S WEEKLY CONTEXT (IMPORTANT - follow these specific requests):
-"${preferences.weekly_context}"
-
-Parse the above for:
-- Specific meal requests (e.g., "taco tuesday" → make Tuesday a taco night)
-- Days they're going out or not cooking (skip those days)
-- Quick meal needs (e.g., "need something quick Wednesday")
-- Theme nights (e.g., "pasta night", "pizza friday")
-
-For SIMPLE/THEME nights (taco night, pasta night, pizza night, etc.):
-- Use the theme as the meal name (e.g., "Taco Night")
-- Provide ONLY a basic ingredient list for shopping - no detailed recipe instructions needed
-- Keep instructions minimal: ["Prepare your favorite tacos with the ingredients above"]
-- Mark with "simple" tag
-- These are family staples where detailed instructions aren't needed
-`
-    : '';
-
-  const prompt = `Generate a weekly meal plan based on these preferences:
-- Household: ${preferences.num_adults} adults, ${preferences.num_children} children
-- Age ranges: ${preferences.child_age_ranges?.join(', ') || 'None'}
-- Meals needed: ${mealTypesNeeded.join(', ')}
-- Cuisine preferences: ${preferences.cuisine_preferences?.join(', ') || 'Any'}
-- Meal styles: ${preferences.meal_style_preferences?.join(', ') || 'Any'}
-- Allergies/restrictions: ${preferences.allergies?.join(', ') || 'None'}
-- Family favorites: ${preferences.staple_meals?.join(', ') || 'None'}
-${weeklyContextSection}
-
-${preferences.plans_leftovers
-  ? `Plan meals to create intentional leftovers where practical. Mark leftover-friendly meals with a "leftovers" tag.`
-  : ''}
-
-MEAL TYPE REQUIREMENTS:
-${preferences.breakfast_enabled ? `- BREAKFAST: Create EXACTLY ${breakfastMeals} unique meal-prep breakfast recipes (batch cooking friendly)
-` : ''}${preferences.lunch_enabled ? `- LUNCH: Create EXACTLY ${lunchMeals} unique meal-prep lunch recipes (make-ahead friendly)
-` : ''}- DINNER: Create EXACTLY ${cookingDays} unique dinner recipes
-
-KEEP RECIPES CONCISE - limit to 5-7 ingredients and 3-5 instruction steps per recipe.
-
-
-DINNER GUIDELINES:
-For FULL RECIPES (most meals), provide:
-1. Meal name
-2. Brief description (1 sentence)
-3. Prep time and cook time
-4. Structured ingredients with quantities, units, and categories
-5. Step-by-step instructions (4-8 steps)
-6. Servings (for ${preferences.num_adults + preferences.num_children} people)
-7. Tags
-
-For SIMPLE/THEME NIGHTS (taco night, pasta night, etc. from user context):
-1. Theme name (e.g., "Taco Night", "Pasta Night")
-2. Brief description
-3. Prep time and cook time (can be estimates)
-4. Basic ingredient shopping list (just what they'd need to buy)
-5. Minimal instructions: just 1-2 steps like "Prepare your favorite tacos"
-6. Servings
-7. Tags: include "simple"
-
-Format as JSON:
-{
-  "meals": [
-    {
-      "day": "Monday",
-      "mealType": "breakfast",
-      "name": "Overnight Oats Meal Prep",
-      "description": "Make-ahead overnight oats for the week (makes 5 servings)",
-      "prepTime": "15 min",
-      "cookTime": "0 min",
-      "servings": ${preferences.num_adults + preferences.num_children},
-      "ingredients": [
-        {"name": "rolled oats", "amount": "2.5", "unit": "cups", "category": "pantry"},
-        {"name": "milk", "amount": "2.5", "unit": "cups", "category": "dairy"}
-      ],
-      "instructions": ["Combine oats and milk in jars", "Add toppings", "Refrigerate overnight", "Storage: Keep refrigerated for up to 5 days"],
-      "tags": ["meal-prep", "make-ahead", "quick"]
-    }
-  ]
-}
-
-Categories for ingredients: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other
-
-CRITICAL RULES:
-${preferences.breakfast_enabled ? `- Output exactly ${breakfastMeals} breakfast recipes with mealType "breakfast"
-` : ''}${preferences.lunch_enabled ? `- Output exactly ${lunchMeals} lunch recipes with mealType "lunch"
-` : ''}- Output exactly ${cookingDays} dinner recipes with mealType "dinner"
-- Assign each meal to a specific day of the week
-- Keep responses compact to fit within limits`;
-
-  // Use Sonnet for larger meal plans (breakfast + lunch + dinner), Haiku for simple dinner-only
-  const needsLargeOutput = preferences.breakfast_enabled || preferences.lunch_enabled;
-  const model = needsLargeOutput ? 'claude-sonnet-4-20250514' : 'claude-3-haiku-20240307';
-  const maxTokens = needsLargeOutput ? 16000 : 4096;
-
-  const message = await anthropic.messages.create({
-    model,
-    max_tokens: maxTokens,
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-    system: 'You are a meal planning JSON generator. Output ONLY valid JSON, nothing else. No explanations, no markdown, no text before or after the JSON. Start your response with { and end with }.',
-  });
-
-  const content = message.content[0];
-  if (content.type === 'text') {
-    return parseClaudeJson(content.text, message.stop_reason);
+  const results = await Promise.all(promises);
+  for (const meals of results) {
+    allMeals.push(...meals);
   }
 
-  throw new Error('Unexpected response format from Claude API');
+  console.log(`Generated ${allMeals.length} total meals`);
+  return { meals: allMeals };
 }
 
 export async function regenerateSingleMeal(params: {
