@@ -19,23 +19,21 @@ export async function POST(request: NextRequest) {
     const generatedPlan = await generateMealPlan(preferences);
     console.log('Generated plan successfully with', generatedPlan.meals?.length || 0, 'meals');
 
-    // Cache the newly generated recipes (dinner only for now) - non-blocking
+    // Cache the newly generated recipes (all meal types) - non-blocking
     if (generatedPlan.meals) {
       Promise.all(
-        generatedPlan.meals
-          .filter((meal: any) => meal.mealType === 'dinner' || !meal.mealType)
-          .map((meal: any) =>
-            cacheRecipe({
-              name: meal.name,
-              description: meal.description,
-              ingredients: meal.ingredients,
-              instructions: meal.instructions,
-              prep_time_minutes: parseInt(meal.prepTime) || undefined,
-              cook_time_minutes: parseInt(meal.cookTime) || undefined,
-              tags: meal.tags,
-              cuisine: preferences.cuisine_preferences?.[0] || undefined,
-            }).catch(err => console.error('Cache error (non-fatal):', err))
-          )
+        generatedPlan.meals.map((meal: any) =>
+          cacheRecipe({
+            name: meal.name,
+            description: meal.description,
+            ingredients: meal.ingredients,
+            instructions: meal.instructions,
+            prep_time_minutes: parseInt(meal.prepTime) || undefined,
+            cook_time_minutes: parseInt(meal.cookTime) || undefined,
+            tags: meal.tags,
+            cuisine: preferences.cuisine_preferences?.[0] || undefined,
+          }).catch(err => console.error('Cache error (non-fatal):', err))
+        )
       );
     }
 

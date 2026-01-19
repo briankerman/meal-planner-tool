@@ -4,7 +4,7 @@ import { regenerateSingleMeal } from '@/lib/anthropic/client';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { day, preferences, existingMeals, lockedDays } = body;
+    const { day, mealType, preferences, existingMeals, lockedDays } = body;
 
     if (!day || !preferences) {
       return NextResponse.json(
@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
 
     const newMeal = await regenerateSingleMeal({
       day,
+      mealType: mealType || 'dinner',
       preferences,
       existingMealNames,
       lockedDays,
