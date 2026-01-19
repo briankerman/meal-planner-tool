@@ -33,7 +33,7 @@ export default function SettingsPage() {
       const { data: profileData, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .single();
 
       if (error) throw error;
@@ -66,7 +66,7 @@ export default function SettingsPage() {
           breakfast_days_per_week: breakfastEnabled ? breakfastDaysPerWeek : null,
           lunch_days_per_week: lunchEnabled ? lunchDaysPerWeek : null,
         })
-        .eq('user_id', user.id);
+        .eq('id', user.id);
 
       if (error) throw error;
 
