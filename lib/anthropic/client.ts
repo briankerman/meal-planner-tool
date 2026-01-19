@@ -162,12 +162,23 @@ ${preferences.breakfast_enabled ? `- BREAKFAST: Create ${breakfastMeals} unique 
         content: prompt,
       },
     ],
-    system: 'You are a helpful meal planning assistant. Generate practical, family-friendly recipes that match user preferences. Always respond with valid JSON only, no markdown formatting.',
+    system: 'You are a meal planning JSON generator. Output ONLY valid JSON, nothing else. No explanations, no markdown, no text before or after the JSON. Start your response with { and end with }.',
   });
 
   const content = message.content[0];
   if (content.type === 'text') {
-    return JSON.parse(content.text);
+    // Try to extract JSON from response if model added extra text
+    let jsonText = content.text.trim();
+
+    // Find the first { and last } to extract JSON
+    const firstBrace = jsonText.indexOf('{');
+    const lastBrace = jsonText.lastIndexOf('}');
+
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+    }
+
+    return JSON.parse(jsonText);
   }
 
   throw new Error('Unexpected response format from Claude API');
@@ -270,12 +281,23 @@ Categories: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other
         content: prompt,
       },
     ],
-    system: 'You are a helpful meal planning assistant. Generate practical, family-friendly recipes. Always respond with valid JSON only, no markdown formatting.',
+    system: 'You are a meal planning JSON generator. Output ONLY valid JSON, nothing else. No explanations, no markdown, no text before or after the JSON. Start your response with { and end with }.',
   });
 
   const content = message.content[0];
   if (content.type === 'text') {
-    return JSON.parse(content.text);
+    // Try to extract JSON from response if model added extra text
+    let jsonText = content.text.trim();
+
+    // Find the first { and last } to extract JSON
+    const firstBrace = jsonText.indexOf('{');
+    const lastBrace = jsonText.lastIndexOf('}');
+
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+    }
+
+    return JSON.parse(jsonText);
   }
 
   throw new Error('Unexpected response format from Claude API');
