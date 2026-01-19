@@ -268,7 +268,7 @@ export default function HistoryPage() {
                                         <div className="flex items-start justify-between gap-3">
                                           <div className="flex-1">
                                             <div className="text-xs font-medium text-gray-500 uppercase mb-1">Your Notes</div>
-                                            <p className="text-sm text-gray-700 italic">"{meal.user_notes}"</p>
+                                            <p className="text-sm text-gray-700 italic">&ldquo;{meal.user_notes}&rdquo;</p>
                                           </div>
                                           <button
                                             onClick={() => {
@@ -373,7 +373,7 @@ export default function HistoryPage() {
               {selectedMeal.user_notes && (
                 <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="text-xs font-semibold text-blue-700 uppercase mb-1">Your Notes</div>
-                  <p className="text-sm text-blue-900 italic">"{selectedMeal.user_notes}"</p>
+                  <p className="text-sm text-blue-900 italic">&ldquo;{selectedMeal.user_notes}&rdquo;</p>
                 </div>
               )}
             </div>

@@ -230,7 +230,7 @@ export default function OnboardingPage() {
                 Which meals would you like meal plans for?
               </label>
               <p className="text-sm text-gray-600 mb-3">
-                Select which meals to include in your weekly meal plan. Choose how many unique recipes per week - we'll suggest meal prep options.
+                Select which meals to include in your weekly meal plan. Choose how many unique recipes per week - we&apos;ll suggest meal prep options.
               </p>
               <div className="space-y-3">
                 <div className="border rounded-md p-3">
@@ -249,7 +249,7 @@ export default function OnboardingPage() {
                         How many unique breakfasts per week?
                       </label>
                       <p className="text-xs text-gray-500 mb-2">
-                        We'll create meal prep-friendly recipes you can batch cook and enjoy multiple days
+                        We&apos;ll create meal prep-friendly recipes you can batch cook and enjoy multiple days
                       </p>
                       <div className="flex gap-2">
                         {[2, 3, 4, 5, 7].map(num => (
@@ -287,7 +287,7 @@ export default function OnboardingPage() {
                         How many unique lunches per week?
                       </label>
                       <p className="text-xs text-gray-500 mb-2">
-                        We'll create meal prep-friendly recipes you can batch cook and enjoy multiple days
+                        We&apos;ll create meal prep-friendly recipes you can batch cook and enjoy multiple days
                       </p>
                       <div className="flex gap-2">
                         {[2, 3, 4, 5, 7].map(num => (

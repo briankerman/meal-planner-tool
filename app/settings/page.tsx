@@ -143,7 +143,7 @@ export default function SettingsPage() {
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  We'll generate {breakfastDaysPerWeek} unique recipes that you can meal prep and repeat throughout the week
+                  We&apos;ll generate {breakfastDaysPerWeek} unique recipes that you can meal prep and repeat throughout the week
                 </p>
               </div>
             )}
@@ -191,7 +191,7 @@ export default function SettingsPage() {
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  We'll generate {lunchDaysPerWeek} unique recipes that you can meal prep and repeat throughout the week
+                  We&apos;ll generate {lunchDaysPerWeek} unique recipes that you can meal prep and repeat throughout the week
                 </p>
               </div>
             )}
