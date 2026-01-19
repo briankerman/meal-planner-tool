@@ -150,8 +150,9 @@ export default function OnboardingPage() {
       localStorage.setItem('weekly_locked_days', JSON.stringify(lockedDays));
 
       router.push('/dashboard');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving profile:', err);
+      alert('Error saving profile: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
