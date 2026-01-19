@@ -155,7 +155,7 @@ ${preferences.breakfast_enabled ? `- BREAKFAST: Create ${breakfastMeals} unique 
 
   // Use Sonnet for larger meal plans (breakfast + lunch + dinner), Haiku for simple dinner-only
   const needsLargeOutput = preferences.breakfast_enabled || preferences.lunch_enabled;
-  const model = needsLargeOutput ? 'claude-3-5-sonnet-20241022' : 'claude-3-haiku-20240307';
+  const model = needsLargeOutput ? 'claude-sonnet-4-20250514' : 'claude-3-haiku-20240307';
   const maxTokens = needsLargeOutput ? 8192 : 4096;
 
   const message = await anthropic.messages.create({
