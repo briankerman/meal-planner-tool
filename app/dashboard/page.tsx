@@ -540,7 +540,7 @@ export default function DashboardPage() {
 
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <label className="block text-lg font-semibold text-gray-900 mb-3">
-            How many meals do you plan to cook this week?
+            How many dinners do you plan to cook this week?
           </label>
           <div className="flex items-center gap-4">
             <input
@@ -553,6 +553,27 @@ export default function DashboardPage() {
             />
             <span className="text-gray-600">dinners</span>
           </div>
+
+          {(profile?.breakfast_enabled || profile?.lunch_enabled) && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <p className="text-sm text-gray-600 mb-2">Also generating:</p>
+              <div className="flex flex-wrap gap-2">
+                {profile?.breakfast_enabled && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
+                    {profile.breakfast_days_per_week || 5} breakfast recipes
+                  </span>
+                )}
+                {profile?.lunch_enabled && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                    {profile.lunch_days_per_week || 5} lunch recipes
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Adjust in <a href="/settings" className="text-blue-600 hover:underline">Settings</a>
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-8 mb-8">
