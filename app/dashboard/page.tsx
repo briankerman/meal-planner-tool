@@ -85,7 +85,15 @@ export default function DashboardPage() {
 
         if (mealPlans && mealPlans.length > 0) {
           const currentPlan = mealPlans[0];
-          setMealPlan({ meals: currentPlan.meals });
+          // Normalize database field names to match API response format
+          const normalizedMeals = (currentPlan.meals || []).map((meal: any) => ({
+            ...meal,
+            day: meal.day_of_week || meal.day,
+            mealType: meal.meal_type || meal.mealType || 'dinner',
+            prepTime: meal.prep_time_minutes ? `${meal.prep_time_minutes} min` : meal.prepTime,
+            cookTime: meal.cook_time_minutes ? `${meal.cook_time_minutes} min` : meal.cookTime,
+          }));
+          setMealPlan({ meals: normalizedMeals });
           setLockedDays(currentPlan.nights_out || {});
           setCurrentMealPlanId(currentPlan.id);
 
@@ -211,6 +219,7 @@ export default function DashboardPage() {
       }
 
       setMealPlan(plan);
+      setCurrentMealPlanId(mealPlanData.id);
       setShowGroceryList(false);
     } catch (error) {
       console.error('Error generating meal plan:', error);
