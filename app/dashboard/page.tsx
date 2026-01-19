@@ -514,6 +514,9 @@ export default function DashboardPage() {
               <a href="/cookbook" className="text-sm text-gray-600 hover:text-gray-900 font-medium">
                 My Cookbook
               </a>
+              <a href="/settings" className="text-sm text-gray-600 hover:text-gray-900 font-medium">
+                Settings
+              </a>
               <button onClick={handleSignOut} className="text-sm text-gray-600 hover:text-gray-900">
                 Sign out
               </button>
