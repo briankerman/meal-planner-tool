@@ -168,7 +168,7 @@ Assign each meal to a different day. Categories: produce, meat, seafood, dairy, 
 
     const content = message.content[0];
     if (content.type === 'text') {
-      const parsed = parseClaudeJson(content.text, message.stop_reason);
+      const parsed = parseClaudeJson(content.text, message.stop_reason ?? undefined);
       const meals = parsed.meals || [];
       console.log(`[${mealType}] Successfully parsed ${meals.length} meals`);
       return meals;
@@ -363,7 +363,7 @@ Categories: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other
 
   const content = message.content[0];
   if (content.type === 'text') {
-    return parseClaudeJson(content.text, message.stop_reason);
+    return parseClaudeJson(content.text, message.stop_reason ?? undefined);
   }
 
   throw new Error('Unexpected response format from Claude API');
