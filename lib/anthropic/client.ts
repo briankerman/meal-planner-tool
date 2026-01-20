@@ -99,12 +99,14 @@ function parseClaudeJson(text: string, stopReason?: string): any {
   }
 }
 
-// Generate meals for a single meal type
+// Generate meals for a single meal type with retry logic
 async function generateMealsForType(
   mealType: 'breakfast' | 'lunch' | 'dinner',
   count: number,
-  preferences: any
+  preferences: any,
+  retryCount = 0
 ): Promise<any[]> {
+  const MAX_RETRIES = 2;
   const servings = preferences.num_adults + preferences.num_children;
 
   const typeGuidelines: Record<string, string> = {
@@ -152,19 +154,38 @@ Output JSON format:
 
 Assign each meal to a different day. Categories: produce, meat, seafood, dairy, pantry, spices, frozen, bakery, other`;
 
-  const message = await anthropic.messages.create({
-    model: 'claude-3-haiku-20240307',
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: prompt }],
-    system: 'You are a meal planning JSON generator. Output ONLY valid JSON. Start with { and end with }.',
-  });
+  try {
+    console.log(`[${mealType}] Starting generation for ${count} meals (attempt ${retryCount + 1})`);
 
-  const content = message.content[0];
-  if (content.type === 'text') {
-    const parsed = parseClaudeJson(content.text, message.stop_reason);
-    return parsed.meals || [];
+    const message = await anthropic.messages.create({
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+      system: 'You are a meal planning JSON generator. Output ONLY valid JSON. Start with { and end with }.',
+    });
+
+    console.log(`[${mealType}] API response received, stop_reason: ${message.stop_reason}`);
+
+    const content = message.content[0];
+    if (content.type === 'text') {
+      const parsed = parseClaudeJson(content.text, message.stop_reason);
+      const meals = parsed.meals || [];
+      console.log(`[${mealType}] Successfully parsed ${meals.length} meals`);
+      return meals;
+    }
+    return [];
+  } catch (error: any) {
+    console.error(`[${mealType}] Error on attempt ${retryCount + 1}:`, error.message || error);
+
+    if (retryCount < MAX_RETRIES) {
+      console.log(`[${mealType}] Retrying in 1 second...`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return generateMealsForType(mealType, count, preferences, retryCount + 1);
+    }
+
+    console.error(`[${mealType}] All retries exhausted, returning empty array`);
+    return [];
   }
-  return [];
 }
 
 export async function generateMealPlan(preferences: {
@@ -184,30 +205,59 @@ export async function generateMealPlan(preferences: {
   staple_meals?: string[];
   weekly_context?: string;
 }) {
+  console.log('Starting meal plan generation with preferences:', JSON.stringify({
+    dinner_days_per_week: preferences.dinner_days_per_week,
+    breakfast_enabled: preferences.breakfast_enabled,
+    lunch_enabled: preferences.lunch_enabled,
+    breakfast_days_per_week: preferences.breakfast_days_per_week,
+    lunch_days_per_week: preferences.lunch_days_per_week,
+  }));
+
   const cookingDays = preferences.dinner_days_per_week;
   const breakfastMeals = preferences.breakfast_enabled ? (preferences.breakfast_days_per_week || 5) : 0;
   const lunchMeals = preferences.lunch_enabled ? (preferences.lunch_days_per_week || 5) : 0;
 
   // Generate each meal type separately to avoid token limits
   const allMeals: any[] = [];
+  const errors: string[] = [];
 
-  // Generate meals in parallel for speed
-  const promises: Promise<any[]>[] = [];
+  // Generate meals in parallel for speed, but use allSettled to handle partial failures
+  const tasks: { type: 'breakfast' | 'lunch' | 'dinner'; count: number }[] = [];
 
   if (breakfastMeals > 0) {
-    promises.push(generateMealsForType('breakfast', breakfastMeals, preferences));
+    tasks.push({ type: 'breakfast', count: breakfastMeals });
   }
   if (lunchMeals > 0) {
-    promises.push(generateMealsForType('lunch', lunchMeals, preferences));
+    tasks.push({ type: 'lunch', count: lunchMeals });
   }
-  promises.push(generateMealsForType('dinner', cookingDays, preferences));
+  tasks.push({ type: 'dinner', count: cookingDays });
 
-  const results = await Promise.all(promises);
-  for (const meals of results) {
-    allMeals.push(...meals);
+  console.log(`Generating ${tasks.length} meal types: ${tasks.map(t => `${t.count} ${t.type}`).join(', ')}`);
+
+  const results = await Promise.allSettled(
+    tasks.map(task => generateMealsForType(task.type, task.count, preferences))
+  );
+
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const task = tasks[i];
+
+    if (result.status === 'fulfilled') {
+      console.log(`[${task.type}] Got ${result.value.length} meals`);
+      allMeals.push(...result.value);
+    } else {
+      console.error(`[${task.type}] Failed:`, result.reason);
+      errors.push(`${task.type}: ${result.reason?.message || 'Unknown error'}`);
+    }
   }
 
-  console.log(`Generated ${allMeals.length} total meals`);
+  console.log(`Generated ${allMeals.length} total meals, ${errors.length} errors`);
+
+  // If we got no meals at all, throw an error
+  if (allMeals.length === 0) {
+    throw new Error(`Failed to generate any meals. Errors: ${errors.join('; ')}`);
+  }
+
   return { meals: allMeals };
 }
 

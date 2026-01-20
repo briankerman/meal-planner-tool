@@ -3,10 +3,13 @@ import { generateMealPlan } from '@/lib/anthropic/client';
 import { cacheRecipe } from '@/lib/recipeCache';
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  console.log('[generate-meal-plan] Request started');
+
   try {
     // Check for API key first
     if (!process.env.ANTHROPIC_API_KEY) {
-      console.error('ANTHROPIC_API_KEY is not configured');
+      console.error('[generate-meal-plan] ANTHROPIC_API_KEY is not configured');
       return NextResponse.json(
         { error: 'API configuration error - missing Anthropic API key' },
         { status: 500 }
@@ -14,13 +17,20 @@ export async function POST(request: NextRequest) {
     }
 
     const preferences = await request.json();
-    console.log('Generating meal plan with preferences:', JSON.stringify(preferences, null, 2));
+    console.log('[generate-meal-plan] Preferences received:', JSON.stringify({
+      num_adults: preferences.num_adults,
+      num_children: preferences.num_children,
+      dinner_days_per_week: preferences.dinner_days_per_week,
+      breakfast_enabled: preferences.breakfast_enabled,
+      lunch_enabled: preferences.lunch_enabled,
+    }));
 
     const generatedPlan = await generateMealPlan(preferences);
-    console.log('Generated plan successfully with', generatedPlan.meals?.length || 0, 'meals');
+    const elapsed = Date.now() - startTime;
+    console.log(`[generate-meal-plan] Generated ${generatedPlan.meals?.length || 0} meals in ${elapsed}ms`);
 
     // Cache the newly generated recipes (all meal types) - non-blocking
-    if (generatedPlan.meals) {
+    if (generatedPlan.meals && generatedPlan.meals.length > 0) {
       Promise.all(
         generatedPlan.meals.map((meal: any) =>
           cacheRecipe({
@@ -32,14 +42,44 @@ export async function POST(request: NextRequest) {
             cook_time_minutes: parseInt(meal.cookTime) || undefined,
             tags: meal.tags,
             cuisine: preferences.cuisine_preferences?.[0] || undefined,
-          }).catch(err => console.error('Cache error (non-fatal):', err))
+          }).catch(err => console.error('[generate-meal-plan] Cache error (non-fatal):', err))
         )
       );
     }
 
     return NextResponse.json({ meals: generatedPlan.meals });
   } catch (error: any) {
-    console.error('Error generating meal plan:', error);
+    const elapsed = Date.now() - startTime;
+    console.error(`[generate-meal-plan] Error after ${elapsed}ms:`, {
+      message: error.message,
+      status: error.status,
+      code: error.code,
+      type: error.type,
+      stack: error.stack?.substring(0, 500),
+    });
+
+    // Anthropic-specific errors
+    if (error.status === 401) {
+      return NextResponse.json(
+        { error: 'Invalid API key. Please check your Anthropic API key configuration.' },
+        { status: 500 }
+      );
+    }
+
+    if (error.status === 429) {
+      return NextResponse.json(
+        { error: 'Rate limited. Please wait a moment and try again.' },
+        { status: 429 }
+      );
+    }
+
+    if (error.status === 529 || error.message?.includes('overloaded')) {
+      return NextResponse.json(
+        { error: 'AI service is temporarily overloaded. Please try again in a few seconds.' },
+        { status: 503 }
+      );
+    }
+
     const errorMessage = error.message || 'Failed to generate meal plan';
     const statusCode = error.status || 500;
     return NextResponse.json(
