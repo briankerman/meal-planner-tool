@@ -1,16 +1,25 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Check for error in URL params (from auth callback)
+  useEffect(() => {
+    const urlError = searchParams.get('error');
+    if (urlError === 'auth_callback_error') {
+      setError('There was a problem confirming your email. Please try again or contact support.');
+    }
+  }, [searchParams]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -24,15 +33,33 @@ export default function LoginPage() {
         password,
       });
 
-      if (signInError) throw signInError;
+      if (signInError) {
+        // Provide user-friendly error messages
+        if (signInError.message.includes('Email not confirmed')) {
+          throw new Error('Please check your email and click the confirmation link before signing in.');
+        }
+        throw signInError;
+      }
 
       if (data.user) {
-        // Check if onboarding is completed
-        const { data: profile } = await supabase
+        // Check if profile exists and onboarding is completed
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('onboarding_completed')
           .eq('id', data.user.id)
           .single();
+
+        // If no profile exists, create one
+        if (profileError && profileError.code === 'PGRST116') {
+          await supabase.from('profiles').insert({
+            id: data.user.id,
+            onboarding_completed: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          router.push('/onboarding');
+          return;
+        }
 
         if (profile?.onboarding_completed) {
           router.push('/dashboard');
@@ -115,5 +142,17 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

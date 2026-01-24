@@ -33,7 +33,10 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/login') ||
                      request.nextUrl.pathname.startsWith('/signup');
   const isProtectedPage = request.nextUrl.pathname.startsWith('/dashboard') ||
-                          request.nextUrl.pathname.startsWith('/onboarding');
+                          request.nextUrl.pathname.startsWith('/onboarding') ||
+                          request.nextUrl.pathname.startsWith('/settings') ||
+                          request.nextUrl.pathname.startsWith('/cookbook') ||
+                          request.nextUrl.pathname.startsWith('/history');
 
   if (isProtectedPage && !user) {
     return NextResponse.redirect(new URL('/login', request.url));
