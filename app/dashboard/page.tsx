@@ -75,7 +75,14 @@ export default function DashboardPage() {
           return;
         }
 
-        setProfile(profileData);
+        // Get user's name from auth metadata or email
+        const firstName =
+          user.user_metadata?.full_name?.split(' ')[0] ||
+          user.user_metadata?.name?.split(' ')[0] ||
+          user.email?.split('@')[0] ||
+          null;
+
+        setProfile({ ...profileData, first_name: firstName });
         setMealsThisWeek(profileData.dinner_days_per_week || 5);
 
         // Load current week's meal plan from Supabase
