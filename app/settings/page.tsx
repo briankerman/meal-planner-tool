@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import Link from 'next/link';
+import { Sidebar } from '@/components/dashboard';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -80,6 +80,11 @@ export default function SettingsPage() {
     }
   }
 
+  function handleSignOut() {
+    localStorage.removeItem('meal_planner_preferences');
+    router.push('/');
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -89,132 +94,130 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <Link href="/dashboard" className="text-blue-600 hover:text-blue-700 text-sm">
-            ← Back to Dashboard
-          </Link>
-        </div>
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar onSignOut={handleSignOut} />
 
-        <div className="bg-white rounded-lg shadow-sm p-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
-          <p className="text-gray-600 mb-8">Update your meal planning preferences</p>
+      <main className="flex-1 ml-64 p-8">
+        <div className="max-w-3xl">
+          <div className="bg-white rounded-lg shadow-sm p-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
+            <p className="text-gray-600 mb-8">Update your meal planning preferences</p>
 
-          {/* Breakfast Section */}
-          <div className="mb-8 pb-8 border-b border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Breakfast</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Generate breakfast recipes for meal prepping
-                </p>
-              </div>
-              <button
-                onClick={() => setBreakfastEnabled(!breakfastEnabled)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  breakfastEnabled ? 'bg-blue-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    breakfastEnabled ? 'translate-x-6' : 'translate-x-1'
+            {/* Breakfast Section */}
+            <div className="mb-8 pb-8 border-b border-gray-200">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Breakfast</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Generate breakfast recipes for meal prepping
+                  </p>
+                </div>
+                <button
+                  onClick={() => setBreakfastEnabled(!breakfastEnabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    breakfastEnabled ? 'bg-simpler-green-400' : 'bg-gray-200'
                   }`}
-                />
-              </button>
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      breakfastEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {breakfastEnabled && (
+                <div className="ml-4 mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    How many unique breakfast recipes per week?
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min="2"
+                      max="7"
+                      value={breakfastDaysPerWeek}
+                      onChange={(e) => setBreakfastDaysPerWeek(parseInt(e.target.value))}
+                      className="flex-1 accent-simpler-green-400"
+                    />
+                    <span className="text-2xl font-bold text-simpler-green-600 w-12 text-center">
+                      {breakfastDaysPerWeek}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    We&apos;ll generate {breakfastDaysPerWeek} unique recipes that you can meal prep and repeat throughout the week
+                  </p>
+                </div>
+              )}
             </div>
 
-            {breakfastEnabled && (
-              <div className="ml-4 mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  How many unique breakfast recipes per week?
-                </label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="2"
-                    max="7"
-                    value={breakfastDaysPerWeek}
-                    onChange={(e) => setBreakfastDaysPerWeek(parseInt(e.target.value))}
-                    className="flex-1"
-                  />
-                  <span className="text-2xl font-bold text-blue-600 w-12 text-center">
-                    {breakfastDaysPerWeek}
-                  </span>
+            {/* Lunch Section */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Lunch</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Generate lunch recipes for meal prepping
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  We&apos;ll generate {breakfastDaysPerWeek} unique recipes that you can meal prep and repeat throughout the week
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Lunch Section */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Lunch</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Generate lunch recipes for meal prepping
-                </p>
-              </div>
-              <button
-                onClick={() => setLunchEnabled(!lunchEnabled)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  lunchEnabled ? 'bg-blue-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    lunchEnabled ? 'translate-x-6' : 'translate-x-1'
+                <button
+                  onClick={() => setLunchEnabled(!lunchEnabled)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    lunchEnabled ? 'bg-simpler-green-400' : 'bg-gray-200'
                   }`}
-                />
-              </button>
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      lunchEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {lunchEnabled && (
+                <div className="ml-4 mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    How many unique lunch recipes per week?
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min="2"
+                      max="7"
+                      value={lunchDaysPerWeek}
+                      onChange={(e) => setLunchDaysPerWeek(parseInt(e.target.value))}
+                      className="flex-1 accent-simpler-green-400"
+                    />
+                    <span className="text-2xl font-bold text-simpler-green-600 w-12 text-center">
+                      {lunchDaysPerWeek}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    We&apos;ll generate {lunchDaysPerWeek} unique recipes that you can meal prep and repeat throughout the week
+                  </p>
+                </div>
+              )}
             </div>
 
-            {lunchEnabled && (
-              <div className="ml-4 mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  How many unique lunch recipes per week?
-                </label>
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    min="2"
-                    max="7"
-                    value={lunchDaysPerWeek}
-                    onChange={(e) => setLunchDaysPerWeek(parseInt(e.target.value))}
-                    className="flex-1"
-                  />
-                  <span className="text-2xl font-bold text-blue-600 w-12 text-center">
-                    {lunchDaysPerWeek}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  We&apos;ll generate {lunchDaysPerWeek} unique recipes that you can meal prep and repeat throughout the week
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Save Button */}
-          <div className="flex gap-4">
-            <button
-              onClick={saveSettings}
-              disabled={saving}
-              className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {saving ? 'Saving...' : 'Save Settings'}
-            </button>
-            <Link
-              href="/dashboard"
-              className="px-6 py-3 rounded-lg font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </Link>
+            {/* Save Button */}
+            <div className="flex gap-4">
+              <button
+                onClick={saveSettings}
+                disabled={saving}
+                className="flex-1 bg-simpler-green-400 text-white px-6 py-3 rounded-lg font-semibold hover:bg-simpler-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? 'Saving...' : 'Save Settings'}
+              </button>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="px-6 py-3 rounded-lg font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
