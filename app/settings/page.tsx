@@ -11,6 +11,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<any>(null);
 
+  const [firstName, setFirstName] = useState('');
+  const [email, setEmail] = useState('');
   const [breakfastEnabled, setBreakfastEnabled] = useState(false);
   const [lunchEnabled, setLunchEnabled] = useState(false);
   const [breakfastDaysPerWeek, setBreakfastDaysPerWeek] = useState(5);
@@ -39,6 +41,8 @@ export default function SettingsPage() {
       if (error) throw error;
 
       setProfile(profileData);
+      setFirstName(user.user_metadata?.first_name || '');
+      setEmail(user.email || '');
       setBreakfastEnabled(profileData.breakfast_enabled || false);
       setLunchEnabled(profileData.lunch_enabled || false);
       setBreakfastDaysPerWeek(profileData.breakfast_days_per_week || 5);
@@ -58,6 +62,15 @@ export default function SettingsPage() {
 
       if (!user) return;
 
+      // Update first name in auth metadata
+      if (firstName.trim()) {
+        const { error: authError } = await supabase.auth.updateUser({
+          data: { first_name: firstName.trim() },
+        });
+        if (authError) throw authError;
+      }
+
+      // Update profile settings
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -70,7 +83,7 @@ export default function SettingsPage() {
 
       if (error) throw error;
 
-      alert('Settings saved! Generate a new meal plan to see breakfast and lunch meals.');
+      alert('Settings saved!');
       router.push('/dashboard');
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -101,7 +114,42 @@ export default function SettingsPage() {
         <div className="max-w-3xl">
           <div className="bg-white rounded-lg shadow-sm p-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
-            <p className="text-gray-600 mb-8">Update your meal planning preferences</p>
+            <p className="text-gray-600 mb-8">Update your account and meal planning preferences</p>
+
+            {/* Personal Information Section */}
+            <div className="mb-8 pb-8 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Personal Information</h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name
+                  </label>
+                  <input
+                    id="firstName"
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-simpler-green-400 focus:border-transparent"
+                    placeholder="Enter your first name"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    disabled
+                    className="w-full max-w-md px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                </div>
+              </div>
+            </div>
 
             {/* Breakfast Section */}
             <div className="mb-8 pb-8 border-b border-gray-200">
