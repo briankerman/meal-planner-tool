@@ -3,10 +3,26 @@
 import { type Meal } from '@/lib/utils/groceryList';
 import DayCard from './DayCard';
 
+interface SavedRecipe {
+  id: string;
+  name: string;
+  description: string | null;
+  meal_type: string | null;
+  ingredients: any[];
+  instructions: string[];
+  prep_time_minutes: number | null;
+  cook_time_minutes: number | null;
+  tags: string[];
+}
+
 interface WeeklyMealGridProps {
   mealPlan: { meals: Meal[] } | null;
   onMealClick: (meal: Meal) => void;
   regeneratingDay: string | null;
+  editMode?: boolean;
+  editedMeals?: { meals: Meal[] } | null;
+  savedRecipes?: SavedRecipe[];
+  onMealChange?: (day: string, mealType: string, meal: Meal | null) => void;
 }
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -15,16 +31,23 @@ export default function WeeklyMealGrid({
   mealPlan,
   onMealClick,
   regeneratingDay,
+  editMode = false,
+  editedMeals,
+  savedRecipes = [],
+  onMealChange,
 }: WeeklyMealGridProps) {
   const today = new Date();
   const todayName = DAYS_OF_WEEK[today.getDay()];
 
+  // In edit mode, use editedMeals if available, otherwise fall back to mealPlan
+  const activePlan = editMode && editedMeals ? editedMeals : mealPlan;
+
   const getMealsForDay = (day: string): Meal[] => {
-    if (!mealPlan?.meals) return [];
-    return mealPlan.meals.filter((m) => m.day === day);
+    if (!activePlan?.meals) return [];
+    return activePlan.meals.filter((m) => m.day === day);
   };
 
-  if (!mealPlan) {
+  if (!mealPlan && !editMode) {
     return (
       <div className="text-center py-16">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
@@ -48,6 +71,9 @@ export default function WeeklyMealGrid({
           onMealClick={onMealClick}
           regeneratingDay={regeneratingDay}
           isToday={day === todayName}
+          editMode={editMode}
+          savedRecipes={savedRecipes}
+          onMealChange={onMealChange}
         />
       ))}
     </div>

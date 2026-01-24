@@ -42,6 +42,9 @@ export default function DashboardPage() {
   const [currentWeekExpired, setCurrentWeekExpired] = useState(false);
   const [currentMealPlanId, setCurrentMealPlanId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const [editedMeals, setEditedMeals] = useState<{ meals: Meal[] } | null>(null);
+  const [savedRecipes, setSavedRecipes] = useState<any[]>([]);
+  const [savingEdits, setSavingEdits] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -500,10 +503,137 @@ export default function DashboardPage() {
     router.push('/');
   }
 
-  function handleEditPlan() {
-    // For now, just toggle edit mode - we can expand this later
-    setEditMode(!editMode);
-    alert('Edit mode coming soon! For now, click on any meal to regenerate it.');
+  async function handleEditPlan() {
+    // Load saved recipes for the dropdown
+    try {
+      const response = await fetch('/api/saved-recipes');
+      if (response.ok) {
+        const data = await response.json();
+        setSavedRecipes(data.recipes || []);
+      }
+    } catch (error) {
+      console.error('Error loading saved recipes:', error);
+    }
+
+    // Copy current meal plan to edited meals
+    if (mealPlan) {
+      setEditedMeals({ meals: [...mealPlan.meals] });
+    }
+
+    setEditMode(true);
+  }
+
+  function handleCancelEdit() {
+    setEditMode(false);
+    setEditedMeals(null);
+  }
+
+  function handleMealChange(day: string, mealType: string, meal: Meal | null) {
+    setEditedMeals((prev) => {
+      if (!prev) {
+        // If no edited meals yet, start with empty array
+        return meal ? { meals: [meal] } : { meals: [] };
+      }
+
+      const existingIndex = prev.meals.findIndex(
+        (m) => m.day === day && (m.mealType || 'dinner') === mealType
+      );
+
+      if (meal === null) {
+        // Remove meal
+        if (existingIndex >= 0) {
+          const updatedMeals = [...prev.meals];
+          updatedMeals.splice(existingIndex, 1);
+          return { meals: updatedMeals };
+        }
+        return prev;
+      }
+
+      if (existingIndex >= 0) {
+        // Update existing meal
+        const updatedMeals = [...prev.meals];
+        updatedMeals[existingIndex] = meal;
+        return { meals: updatedMeals };
+      } else {
+        // Add new meal
+        return { meals: [...prev.meals, meal] };
+      }
+    });
+  }
+
+  async function handleSaveEdits() {
+    if (!editedMeals || !currentMealPlanId) return;
+
+    setSavingEdits(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error('Not authenticated');
+      }
+
+      const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const today = new Date();
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay());
+
+      // Process each meal in editedMeals
+      for (const meal of editedMeals.meals) {
+        const dayDate = new Date(weekStart);
+        const dayIndex = DAYS_OF_WEEK.indexOf(meal.day);
+        dayDate.setDate(weekStart.getDate() + (dayIndex >= 0 ? dayIndex : 0));
+
+        // Check if meal already exists in database
+        const { data: existingMeal } = await supabase
+          .from('meals')
+          .select('id')
+          .eq('meal_plan_id', currentMealPlanId)
+          .eq('day_of_week', meal.day)
+          .eq('meal_type', meal.mealType || 'dinner')
+          .single();
+
+        const mealData = {
+          name: meal.name,
+          description: meal.description || 'Custom meal',
+          meal_type: meal.mealType || 'dinner',
+          day_of_week: meal.day,
+          date: dayDate.toISOString().split('T')[0],
+          ingredients: meal.ingredients || [],
+          instructions: meal.instructions || [],
+          prep_time_minutes: meal.prepTime ? parseInt(meal.prepTime) : null,
+          cook_time_minutes: meal.cookTime ? parseInt(meal.cookTime) : null,
+          tags: meal.tags || [],
+        };
+
+        if (existingMeal) {
+          // Update existing meal
+          await supabase
+            .from('meals')
+            .update(mealData)
+            .eq('id', existingMeal.id);
+        } else {
+          // Insert new meal
+          await supabase
+            .from('meals')
+            .insert({
+              ...mealData,
+              user_id: user.id,
+              meal_plan_id: currentMealPlanId,
+            });
+        }
+      }
+
+      // Update local meal plan state
+      setMealPlan(editedMeals);
+      setEditMode(false);
+      setEditedMeals(null);
+    } catch (error) {
+      console.error('Error saving edits:', error);
+      alert('Failed to save changes. Please try again.');
+    } finally {
+      setSavingEdits(false);
+    }
   }
 
   if (loading) {
@@ -532,8 +662,12 @@ export default function DashboardPage() {
           onGeneratePlan={generateNewMealPlan}
           onEditPlan={handleEditPlan}
           onShowGroceryList={() => setShowGroceryModal(true)}
+          onSaveEdits={handleSaveEdits}
+          onCancelEdit={handleCancelEdit}
           generating={generating}
+          saving={savingEdits}
           hasMealPlan={!!mealPlan}
+          editMode={editMode}
         />
 
         {/* Weekly Meal Grid */}
@@ -541,6 +675,10 @@ export default function DashboardPage() {
           mealPlan={mealPlan}
           onMealClick={setSelectedMeal}
           regeneratingDay={regeneratingDay}
+          editMode={editMode}
+          editedMeals={editedMeals}
+          savedRecipes={savedRecipes}
+          onMealChange={handleMealChange}
         />
 
         {/* Week Expired Notice */}

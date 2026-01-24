@@ -2,6 +2,19 @@
 
 import { type Meal } from '@/lib/utils/groceryList';
 import MealSlot from './MealSlot';
+import EditableMealSlot from './EditableMealSlot';
+
+interface SavedRecipe {
+  id: string;
+  name: string;
+  description: string | null;
+  meal_type: string | null;
+  ingredients: any[];
+  instructions: string[];
+  prep_time_minutes: number | null;
+  cook_time_minutes: number | null;
+  tags: string[];
+}
 
 interface DayCardProps {
   day: string;
@@ -9,6 +22,9 @@ interface DayCardProps {
   onMealClick: (meal: Meal) => void;
   regeneratingDay: string | null;
   isToday: boolean;
+  editMode?: boolean;
+  savedRecipes?: SavedRecipe[];
+  onMealChange?: (day: string, mealType: string, meal: Meal | null) => void;
 }
 
 export default function DayCard({
@@ -17,6 +33,9 @@ export default function DayCard({
   onMealClick,
   regeneratingDay,
   isToday,
+  editMode = false,
+  savedRecipes = [],
+  onMealChange,
 }: DayCardProps) {
   const getMealForType = (mealType: string) => {
     return meals.find((m) => (m.mealType || 'dinner') === mealType);
@@ -24,6 +43,12 @@ export default function DayCard({
 
   const isRegeneratingMeal = (mealType: string) => {
     return regeneratingDay === `${day}-${mealType}`;
+  };
+
+  const handleMealChange = (dayName: string, mealType: string, meal: Meal | null) => {
+    if (onMealChange) {
+      onMealChange(dayName, mealType, meal);
+    }
   };
 
   return (
@@ -46,24 +71,52 @@ export default function DayCard({
 
       {/* Meal slots */}
       <div className="divide-y divide-gray-100">
-        <MealSlot
-          mealType="breakfast"
-          meal={getMealForType('breakfast')}
-          onMealClick={onMealClick}
-          isRegenerating={isRegeneratingMeal('breakfast')}
-        />
-        <MealSlot
-          mealType="lunch"
-          meal={getMealForType('lunch')}
-          onMealClick={onMealClick}
-          isRegenerating={isRegeneratingMeal('lunch')}
-        />
-        <MealSlot
-          mealType="dinner"
-          meal={getMealForType('dinner')}
-          onMealClick={onMealClick}
-          isRegenerating={isRegeneratingMeal('dinner')}
-        />
+        {editMode ? (
+          <>
+            <EditableMealSlot
+              mealType="breakfast"
+              meal={getMealForType('breakfast')}
+              day={day}
+              savedRecipes={savedRecipes}
+              onMealChange={handleMealChange}
+            />
+            <EditableMealSlot
+              mealType="lunch"
+              meal={getMealForType('lunch')}
+              day={day}
+              savedRecipes={savedRecipes}
+              onMealChange={handleMealChange}
+            />
+            <EditableMealSlot
+              mealType="dinner"
+              meal={getMealForType('dinner')}
+              day={day}
+              savedRecipes={savedRecipes}
+              onMealChange={handleMealChange}
+            />
+          </>
+        ) : (
+          <>
+            <MealSlot
+              mealType="breakfast"
+              meal={getMealForType('breakfast')}
+              onMealClick={onMealClick}
+              isRegenerating={isRegeneratingMeal('breakfast')}
+            />
+            <MealSlot
+              mealType="lunch"
+              meal={getMealForType('lunch')}
+              onMealClick={onMealClick}
+              isRegenerating={isRegeneratingMeal('lunch')}
+            />
+            <MealSlot
+              mealType="dinner"
+              meal={getMealForType('dinner')}
+              onMealClick={onMealClick}
+              isRegenerating={isRegeneratingMeal('dinner')}
+            />
+          </>
+        )}
       </div>
     </div>
   );
