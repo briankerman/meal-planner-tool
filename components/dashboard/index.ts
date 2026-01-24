@@ -6,3 +6,5 @@ export { default as MealSlot } from './MealSlot';
 export { default as EditableMealSlot } from './EditableMealSlot';
 export { default as MealDetailModal } from './MealDetailModal';
 export { default as GroceryListModal } from './GroceryListModal';
+export { default as GeneratePlanModal } from './GeneratePlanModal';
+export type { MealPlanConfig } from './GeneratePlanModal';

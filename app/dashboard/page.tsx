@@ -10,6 +10,8 @@ import {
   WeeklyMealGrid,
   MealDetailModal,
   GroceryListModal,
+  GeneratePlanModal,
+  type MealPlanConfig,
 } from '@/components/dashboard';
 import {
   generateGroceryList,
@@ -45,6 +47,7 @@ export default function DashboardPage() {
   const [editedMeals, setEditedMeals] = useState<{ meals: Meal[] } | null>(null);
   const [savedRecipes, setSavedRecipes] = useState<any[]>([]);
   const [savingEdits, setSavingEdits] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -155,7 +158,8 @@ export default function DashboardPage() {
     }
   }, [mealPlan]);
 
-  async function generateNewMealPlan() {
+  async function generateNewMealPlan(config: MealPlanConfig) {
+    setShowGenerateModal(false);
     setGenerating(true);
     try {
       const supabase = createClient();
@@ -171,8 +175,12 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...profile,
-          dinner_days_per_week: mealsThisWeek,
-          weekly_context: weeklyContext,
+          breakfast_enabled: config.breakfastEnabled,
+          breakfast_days_per_week: config.breakfastCount,
+          lunch_enabled: config.lunchEnabled,
+          lunch_days_per_week: config.lunchCount,
+          dinner_days_per_week: config.dinnerCount,
+          weekly_context: config.weeklyContext,
         }),
       });
 
@@ -666,7 +674,7 @@ export default function DashboardPage() {
         {/* Header */}
         <DashboardHeader
           profile={profile}
-          onGeneratePlan={generateNewMealPlan}
+          onGeneratePlan={() => setShowGenerateModal(true)}
           onEditPlan={handleEditPlan}
           onShowGroceryList={() => setShowGroceryModal(true)}
           onSaveEdits={handleSaveEdits}
@@ -729,6 +737,14 @@ export default function DashboardPage() {
         onGroupingModeChange={setGroupingMode}
         onToggleItem={toggleGroceryItem}
         onPrint={printGroceryList}
+      />
+
+      {/* Generate Plan Modal */}
+      <GeneratePlanModal
+        isOpen={showGenerateModal}
+        onClose={() => setShowGenerateModal(false)}
+        onGenerate={generateNewMealPlan}
+        isGenerating={generating}
       />
     </div>
   );

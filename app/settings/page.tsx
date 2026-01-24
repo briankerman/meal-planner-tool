@@ -5,18 +5,29 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Sidebar } from '@/components/dashboard';
 
+const CUISINES = ['Italian', 'Mexican', 'Asian', 'American', 'Mediterranean', 'Indian', 'Thai'];
+const MEAL_STYLES = ['Quick (30 min)', 'Slow-cooker', 'One-pan', 'Sheet-pan', 'Instant Pot', 'Make-ahead'];
+const COMMON_ALLERGIES = ['Nuts', 'Dairy', 'Gluten', 'Eggs', 'Soy', 'Shellfish', 'Fish'];
+
 export default function SettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
 
+  // Personal info
   const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [breakfastEnabled, setBreakfastEnabled] = useState(false);
-  const [lunchEnabled, setLunchEnabled] = useState(false);
-  const [breakfastDaysPerWeek, setBreakfastDaysPerWeek] = useState(5);
-  const [lunchDaysPerWeek, setLunchDaysPerWeek] = useState(5);
+
+  // Household
+  const [numAdults, setNumAdults] = useState(2);
+  const [numChildren, setNumChildren] = useState(0);
+
+  // Preferences
+  const [cuisinePreferences, setCuisinePreferences] = useState<string[]>([]);
+  const [mealStylePreferences, setMealStylePreferences] = useState<string[]>([]);
+  const [allergies, setAllergies] = useState<string[]>([]);
 
   useEffect(() => {
     loadProfile();
@@ -40,18 +51,28 @@ export default function SettingsPage() {
 
       if (error) throw error;
 
-      setProfile(profileData);
       setFirstName(user.user_metadata?.first_name || '');
+      setLastName(user.user_metadata?.last_name || '');
+      setPhone(user.user_metadata?.phone || '');
       setEmail(user.email || '');
-      setBreakfastEnabled(profileData.breakfast_enabled || false);
-      setLunchEnabled(profileData.lunch_enabled || false);
-      setBreakfastDaysPerWeek(profileData.breakfast_days_per_week || 5);
-      setLunchDaysPerWeek(profileData.lunch_days_per_week || 5);
+
+      // Load household info
+      setNumAdults(profileData.num_adults || 2);
+      setNumChildren(profileData.num_children || 0);
+
+      // Load preferences
+      setCuisinePreferences(profileData.cuisine_preferences || []);
+      setMealStylePreferences(profileData.meal_style_preferences || []);
+      setAllergies(profileData.allergies || []);
     } catch (error) {
       console.error('Error loading profile:', error);
     } finally {
       setLoading(false);
     }
+  }
+
+  function toggleArrayItem<T>(arr: T[], item: T): T[] {
+    return arr.includes(item) ? arr.filter(i => i !== item) : [...arr, item];
   }
 
   async function saveSettings() {
@@ -62,22 +83,26 @@ export default function SettingsPage() {
 
       if (!user) return;
 
-      // Update first name in auth metadata
-      if (firstName.trim()) {
-        const { error: authError } = await supabase.auth.updateUser({
-          data: { first_name: firstName.trim() },
-        });
-        if (authError) throw authError;
-      }
+      // Update name and phone in auth metadata
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          phone: phone.trim(),
+        },
+      });
+      if (authError) throw authError;
 
       // Update profile settings
       const { error } = await supabase
         .from('profiles')
         .update({
-          breakfast_enabled: breakfastEnabled,
-          lunch_enabled: lunchEnabled,
-          breakfast_days_per_week: breakfastEnabled ? breakfastDaysPerWeek : null,
-          lunch_days_per_week: lunchEnabled ? lunchDaysPerWeek : null,
+          num_adults: numAdults,
+          num_children: numChildren,
+          cuisine_preferences: cuisinePreferences.length > 0 ? cuisinePreferences : null,
+          meal_style_preferences: mealStylePreferences.length > 0 ? mealStylePreferences : null,
+          allergies: allergies.length > 0 ? allergies : null,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', user.id);
 
@@ -120,7 +145,7 @@ export default function SettingsPage() {
             <div className="mb-8 pb-8 border-b border-gray-200">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Personal Information</h2>
 
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
                     First Name
@@ -130,8 +155,36 @@ export default function SettingsPage() {
                     type="text"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-simpler-green-400 focus:border-transparent"
-                    placeholder="Enter your first name"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-simpler-green-400 focus:border-transparent"
+                    placeholder="First name"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name
+                  </label>
+                  <input
+                    id="lastName"
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-simpler-green-400 focus:border-transparent"
+                    placeholder="Last name"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-simpler-green-400 focus:border-transparent"
+                    placeholder="(555) 123-4567"
                   />
                 </div>
 
@@ -144,107 +197,143 @@ export default function SettingsPage() {
                     type="email"
                     value={email}
                     disabled
-                    className="w-full max-w-md px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
                   />
                   <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
                 </div>
               </div>
             </div>
 
-            {/* Breakfast Section */}
+            {/* Household Section */}
             <div className="mb-8 pb-8 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Breakfast</h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Generate breakfast recipes for meal prepping
-                  </p>
-                </div>
-                <button
-                  onClick={() => setBreakfastEnabled(!breakfastEnabled)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    breakfastEnabled ? 'bg-simpler-green-400' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      breakfastEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Household</h2>
 
-              {breakfastEnabled && (
-                <div className="ml-4 mt-4">
+              <div className="space-y-4">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    How many unique breakfast recipes per week?
+                    Number of adults
                   </label>
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="range"
-                      min="2"
-                      max="7"
-                      value={breakfastDaysPerWeek}
-                      onChange={(e) => setBreakfastDaysPerWeek(parseInt(e.target.value))}
-                      className="flex-1 accent-simpler-green-400"
-                    />
-                    <span className="text-2xl font-bold text-simpler-green-600 w-12 text-center">
-                      {breakfastDaysPerWeek}
-                    </span>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map(num => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setNumAdults(num)}
+                        className={`px-4 py-2 rounded-lg border ${
+                          numAdults === num
+                            ? 'bg-simpler-green-400 text-white border-simpler-green-400'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    We&apos;ll generate {breakfastDaysPerWeek} unique recipes that you can meal prep and repeat throughout the week
-                  </p>
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Number of children
+                  </label>
+                  <div className="flex gap-2">
+                    {[0, 1, 2, 3, 4, 5].map(num => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setNumChildren(num)}
+                        className={`px-4 py-2 rounded-lg border ${
+                          numChildren === num
+                            ? 'bg-simpler-green-400 text-white border-simpler-green-400'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Lunch Section */}
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Lunch</h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Generate lunch recipes for meal prepping
-                  </p>
-                </div>
-                <button
-                  onClick={() => setLunchEnabled(!lunchEnabled)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    lunchEnabled ? 'bg-simpler-green-400' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      lunchEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
+            {/* Food Preferences Section */}
+            <div className="mb-8 pb-8 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Food Preferences</h2>
 
-              {lunchEnabled && (
-                <div className="ml-4 mt-4">
+              <div className="space-y-6">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    How many unique lunch recipes per week?
+                    Favorite cuisines
                   </label>
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="range"
-                      min="2"
-                      max="7"
-                      value={lunchDaysPerWeek}
-                      onChange={(e) => setLunchDaysPerWeek(parseInt(e.target.value))}
-                      className="flex-1 accent-simpler-green-400"
-                    />
-                    <span className="text-2xl font-bold text-simpler-green-600 w-12 text-center">
-                      {lunchDaysPerWeek}
-                    </span>
+                  <div className="flex flex-wrap gap-2">
+                    {CUISINES.map(cuisine => (
+                      <button
+                        key={cuisine}
+                        type="button"
+                        onClick={() => setCuisinePreferences(toggleArrayItem(cuisinePreferences, cuisine))}
+                        className={`px-3 py-1.5 rounded-full text-sm border ${
+                          cuisinePreferences.includes(cuisine)
+                            ? 'bg-simpler-green-400 text-white border-simpler-green-400'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {cuisine}
+                      </button>
+                    ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    We&apos;ll generate {lunchDaysPerWeek} unique recipes that you can meal prep and repeat throughout the week
-                  </p>
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Preferred meal styles
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {MEAL_STYLES.map(style => (
+                      <button
+                        key={style}
+                        type="button"
+                        onClick={() => setMealStylePreferences(toggleArrayItem(mealStylePreferences, style))}
+                        className={`px-3 py-1.5 rounded-full text-sm border ${
+                          mealStylePreferences.includes(style)
+                            ? 'bg-simpler-green-400 text-white border-simpler-green-400'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {style}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Dietary Restrictions Section */}
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Dietary Restrictions</h2>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Allergies or foods to avoid
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {COMMON_ALLERGIES.map(allergy => (
+                    <button
+                      key={allergy}
+                      type="button"
+                      onClick={() => setAllergies(toggleArrayItem(allergies, allergy))}
+                      className={`px-3 py-1.5 rounded-full text-sm border ${
+                        allergies.includes(allergy)
+                          ? 'bg-red-500 text-white border-red-500'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {allergy}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Select any foods you need to avoid. These will never appear in your meal plans.
+                </p>
+              </div>
             </div>
 
             {/* Save Button */}
