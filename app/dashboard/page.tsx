@@ -75,11 +75,11 @@ export default function DashboardPage() {
           return;
         }
 
-        // Get user's name from auth metadata or email
+        // Get user's name from auth metadata
         const firstName =
+          user.user_metadata?.first_name ||
           user.user_metadata?.full_name?.split(' ')[0] ||
           user.user_metadata?.name?.split(' ')[0] ||
-          user.email?.split('@')[0] ||
           null;
 
         setProfile({ ...profileData, first_name: firstName });
