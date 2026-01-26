@@ -65,27 +65,37 @@ export default function SignupPage() {
 
       if (signUpError) throw signUpError;
 
+      // Check if user already exists (Supabase returns user but no session for existing unconfirmed users)
+      if (data.user && !data.session && data.user.identities?.length === 0) {
+        throw new Error('An account with this email already exists. Please check your email for a confirmation link or try logging in.');
+      }
+
       if (data.user) {
-        // Create profile for new user
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: data.user.id,
-          onboarding_completed: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-
-        // Ignore duplicate key errors (profile may already exist from trigger)
-        if (profileError && !profileError.message.includes('duplicate')) {
-          console.error('Error creating profile:', profileError);
-        }
-
-        // Check if user has a session (no email confirmation required)
+        // If we have a session, user can proceed immediately
         if (data.session) {
+          // Try to create profile with the authenticated session
+          const { error: profileError } = await supabase.from('profiles').insert({
+            id: data.user.id,
+            onboarding_completed: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+
+          // Ignore duplicate key errors (profile may already exist)
+          if (profileError && !profileError.message.includes('duplicate')) {
+            console.error('Error creating profile:', profileError);
+          }
+
+          // Force router refresh to update middleware auth state
+          router.refresh();
           router.push('/onboarding');
         } else {
-          // Email confirmation is required
+          // Email confirmation is required - profile will be created on first login
           setConfirmationSent(true);
         }
+      } else {
+        // No user returned - something went wrong
+        throw new Error('Failed to create account. Please try again.');
       }
     } catch (err: any) {
       console.error('Signup error:', err);

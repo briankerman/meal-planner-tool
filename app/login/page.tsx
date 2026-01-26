@@ -54,8 +54,12 @@ function LoginForm() {
 
       if (signInError) {
         // Provide user-friendly error messages
-        if (signInError.message.includes('Email not confirmed')) {
+        const errorMsg = signInError.message.toLowerCase();
+        if (errorMsg.includes('email not confirmed') || errorMsg.includes('email_not_confirmed')) {
           throw new Error('Please check your email and click the confirmation link before signing in.');
+        }
+        if (errorMsg.includes('invalid login credentials') || errorMsg.includes('invalid_credentials')) {
+          throw new Error('Invalid email or password. Please try again.');
         }
         throw signInError;
       }
@@ -70,15 +74,27 @@ function LoginForm() {
 
         // If no profile exists, create one
         if (profileError && profileError.code === 'PGRST116') {
-          await supabase.from('profiles').insert({
+          const { error: insertError } = await supabase.from('profiles').insert({
             id: data.user.id,
             onboarding_completed: false,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           });
+
+          if (insertError) {
+            console.error('Error creating profile:', insertError);
+          }
+
           router.push('/onboarding');
           return;
         }
+
+        if (profileError && profileError.code !== 'PGRST116') {
+          console.error('Error fetching profile:', profileError);
+        }
+
+        // Force router refresh to update middleware auth state
+        router.refresh();
 
         if (profile?.onboarding_completed) {
           router.push('/dashboard');
@@ -87,6 +103,7 @@ function LoginForm() {
         }
       }
     } catch (err: any) {
+      console.error('Login error:', err);
       setError(err.message || 'Failed to sign in');
     } finally {
       setLoading(false);
