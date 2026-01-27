@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Sidebar } from '@/components/dashboard';
 
@@ -9,8 +9,9 @@ const CUISINES = ['Italian', 'Mexican', 'Asian', 'American', 'Mediterranean', 'I
 const MEAL_STYLES = ['Quick (30 min)', 'Slow-cooker', 'One-pan', 'Sheet-pan', 'Instant Pot', 'Make-ahead'];
 const COMMON_ALLERGIES = ['Nuts', 'Dairy', 'Gluten', 'Eggs', 'Soy', 'Shellfish', 'Fish'];
 
-export default function SettingsPage() {
+function SettingsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -24,6 +25,12 @@ export default function SettingsPage() {
   const [numAdults, setNumAdults] = useState(2);
   const [numChildren, setNumChildren] = useState(0);
 
+  // Pinterest
+  const [pinterestConnected, setPinterestConnected] = useState(false);
+  const [pinterestUsername, setPinterestUsername] = useState<string | null>(null);
+  const [pinterestLoading, setPinterestLoading] = useState(false);
+  const [pinterestMessage, setPinterestMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   // Preferences
   const [cuisinePreferences, setCuisinePreferences] = useState<string[]>([]);
   const [mealStylePreferences, setMealStylePreferences] = useState<string[]>([]);
@@ -31,7 +38,70 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadProfile();
-  }, []);
+    loadPinterestStatus();
+
+    // Check for Pinterest callback messages
+    const pinterestConnected = searchParams.get('pinterest_connected');
+    const pinterestError = searchParams.get('pinterest_error');
+
+    if (pinterestConnected === 'true') {
+      setPinterestMessage({ type: 'success', text: 'Pinterest connected successfully!' });
+      // Clear URL params
+      router.replace('/settings', { scroll: false });
+    } else if (pinterestError) {
+      setPinterestMessage({ type: 'error', text: `Pinterest connection failed: ${pinterestError}` });
+      router.replace('/settings', { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, router]);
+
+  async function loadPinterestStatus() {
+    try {
+      const response = await fetch('/api/pinterest/status');
+      if (response.ok) {
+        const data = await response.json();
+        setPinterestConnected(data.connected);
+        setPinterestUsername(data.username || null);
+      }
+    } catch (error) {
+      console.error('Error loading Pinterest status:', error);
+    }
+  }
+
+  async function connectPinterest() {
+    setPinterestLoading(true);
+    setPinterestMessage(null);
+    try {
+      const response = await fetch('/api/pinterest/auth');
+      if (!response.ok) throw new Error('Failed to get auth URL');
+
+      const { authUrl } = await response.json();
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Error connecting Pinterest:', error);
+      setPinterestMessage({ type: 'error', text: 'Failed to connect Pinterest' });
+      setPinterestLoading(false);
+    }
+  }
+
+  async function disconnectPinterest() {
+    if (!confirm('Disconnect your Pinterest account?')) return;
+
+    setPinterestLoading(true);
+    try {
+      const response = await fetch('/api/pinterest/status', { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to disconnect');
+
+      setPinterestConnected(false);
+      setPinterestUsername(null);
+      setPinterestMessage({ type: 'success', text: 'Pinterest disconnected' });
+    } catch (error) {
+      console.error('Error disconnecting Pinterest:', error);
+      setPinterestMessage({ type: 'error', text: 'Failed to disconnect Pinterest' });
+    } finally {
+      setPinterestLoading(false);
+    }
+  }
 
   async function loadProfile() {
     try {
@@ -306,6 +376,69 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            {/* Connected Apps Section */}
+            <div className="mb-8 pb-8 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Connected Apps</h2>
+
+              {pinterestMessage && (
+                <div
+                  className={`mb-4 p-3 rounded-lg ${
+                    pinterestMessage.type === 'success'
+                      ? 'bg-green-50 text-green-800 border border-green-200'
+                      : 'bg-red-50 text-red-800 border border-red-200'
+                  }`}
+                >
+                  {pinterestMessage.text}
+                </div>
+              )}
+
+              <div className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-6 h-6 text-red-600" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738.098.119.112.224.083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.632-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900">Pinterest</h3>
+                      {pinterestConnected ? (
+                        <p className="text-sm text-green-600">Connected as @{pinterestUsername}</p>
+                      ) : (
+                        <p className="text-sm text-gray-500">Import recipes from your Pinterest boards</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {pinterestConnected ? (
+                    <button
+                      onClick={disconnectPinterest}
+                      disabled={pinterestLoading}
+                      className="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {pinterestLoading ? 'Disconnecting...' : 'Disconnect'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={connectPinterest}
+                      disabled={pinterestLoading}
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {pinterestLoading ? 'Connecting...' : 'Connect'}
+                    </button>
+                  )}
+                </div>
+
+                {pinterestConnected && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <p className="text-sm text-gray-600">
+                      Go to your <a href="/cookbook" className="text-simpler-green-600 hover:underline">Cookbook</a> to import recipes from Pinterest.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Dietary Restrictions Section */}
             <div className="mb-8">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Dietary Restrictions</h2>
@@ -356,5 +489,17 @@ export default function SettingsPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    }>
+      <SettingsContent />
+    </Suspense>
   );
 }
