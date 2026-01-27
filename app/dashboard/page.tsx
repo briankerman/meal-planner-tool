@@ -8,6 +8,7 @@ import {
   Sidebar,
   DashboardHeader,
   WeeklyMealGrid,
+  WeekNavigator,
   MealDetailModal,
   GroceryListModal,
   GeneratePlanModal,
@@ -48,6 +49,74 @@ export default function DashboardPage() {
   const [savedRecipes, setSavedRecipes] = useState<any[]>([]);
   const [savingEdits, setSavingEdits] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = current week, 1 = next week, -1 = previous week
+
+  // Calculate week start date based on offset
+  const getWeekStartDate = (offset: number): Date => {
+    const today = new Date();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay() + offset * 7);
+    weekStart.setHours(0, 0, 0, 0);
+    return weekStart;
+  };
+
+  const selectedWeekStart = getWeekStartDate(weekOffset);
+  const isCurrentWeek = weekOffset === 0;
+  const isFutureWeek = weekOffset > 0;
+
+  // Load meal plan for a specific week
+  async function loadMealPlanForWeek(weekStart: Date) {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+
+    const { data: mealPlans } = await supabase
+      .from('meal_plans')
+      .select('*, meals(*)')
+      .eq('user_id', user.id)
+      .eq('week_start_date', weekStartStr)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (mealPlans && mealPlans.length > 0) {
+      const currentPlan = mealPlans[0];
+      // Normalize database field names to match API response format
+      const normalizedMeals = (currentPlan.meals || []).map((meal: any) => ({
+        ...meal,
+        day: meal.day_of_week || meal.day,
+        mealType: meal.meal_type || meal.mealType || 'dinner',
+        prepTime: meal.prep_time_minutes ? `${meal.prep_time_minutes} min` : meal.prepTime,
+        cookTime: meal.cook_time_minutes ? `${meal.cook_time_minutes} min` : meal.cookTime,
+      }));
+      setMealPlan({ meals: normalizedMeals });
+      setLockedDays(currentPlan.nights_out || {});
+      setCurrentMealPlanId(currentPlan.id);
+
+      // Check if the week has expired (past Saturday 11:59pm)
+      const weekEndDate = new Date(currentPlan.week_end_date);
+      weekEndDate.setHours(23, 59, 59, 999);
+      const now = new Date();
+      const isExpired = now > weekEndDate;
+      setCurrentWeekExpired(isExpired);
+
+      // Lock the meal plan in database if expired and not already locked
+      if (isExpired && !currentPlan.is_locked) {
+        await supabase
+          .from('meal_plans')
+          .update({ is_locked: true })
+          .eq('id', currentPlan.id);
+      }
+    } else {
+      // No meal plan for this week
+      setMealPlan(null);
+      setLockedDays({});
+      setCurrentMealPlanId(null);
+      setCurrentWeekExpired(false);
+    }
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -88,55 +157,8 @@ export default function DashboardPage() {
         setProfile({ ...profileData, first_name: firstName });
         setMealsThisWeek(profileData.dinner_days_per_week || 5);
 
-        // Load current week's meal plan from Supabase
-        const today = new Date();
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay());
-        const weekStartStr = weekStart.toISOString().split('T')[0];
-
-        const { data: mealPlans } = await supabase
-          .from('meal_plans')
-          .select('*, meals(*)')
-          .eq('user_id', user.id)
-          .eq('week_start_date', weekStartStr)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (mealPlans && mealPlans.length > 0) {
-          const currentPlan = mealPlans[0];
-          // Normalize database field names to match API response format
-          const normalizedMeals = (currentPlan.meals || []).map((meal: any) => ({
-            ...meal,
-            day: meal.day_of_week || meal.day,
-            mealType: meal.meal_type || meal.mealType || 'dinner',
-            prepTime: meal.prep_time_minutes ? `${meal.prep_time_minutes} min` : meal.prepTime,
-            cookTime: meal.cook_time_minutes ? `${meal.cook_time_minutes} min` : meal.cookTime,
-          }));
-          setMealPlan({ meals: normalizedMeals });
-          setLockedDays(currentPlan.nights_out || {});
-          setCurrentMealPlanId(currentPlan.id);
-
-          // Check if the week has expired (past Saturday 11:59pm)
-          const weekEndDate = new Date(currentPlan.week_end_date);
-          weekEndDate.setHours(23, 59, 59, 999);
-          const now = new Date();
-          const isExpired = now > weekEndDate;
-          setCurrentWeekExpired(isExpired);
-
-          // Lock the meal plan in database if expired and not already locked
-          if (isExpired && !currentPlan.is_locked) {
-            await supabase
-              .from('meal_plans')
-              .update({ is_locked: true })
-              .eq('id', currentPlan.id);
-          }
-        } else {
-          // Fallback to localStorage for locked days
-          const storedLockedDays = localStorage.getItem('weekly_locked_days');
-          if (storedLockedDays) {
-            setLockedDays(JSON.parse(storedLockedDays));
-          }
-        }
+        // Load current week's meal plan
+        await loadMealPlanForWeek(getWeekStartDate(0));
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {
@@ -146,6 +168,27 @@ export default function DashboardPage() {
 
     loadData();
   }, [router]);
+
+  // Load meal plan when week changes
+  useEffect(() => {
+    if (!loading && profile) {
+      loadMealPlanForWeek(selectedWeekStart);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekOffset]);
+
+  // Week navigation handlers
+  function goToPreviousWeek() {
+    if (weekOffset > -4) { // Allow going back 4 weeks
+      setWeekOffset((prev) => prev - 1);
+    }
+  }
+
+  function goToNextWeek() {
+    if (weekOffset < 1) { // Allow going forward 1 week
+      setWeekOffset((prev) => prev + 1);
+    }
+  }
 
   useEffect(() => {
     if (mealPlan?.meals) {
@@ -190,10 +233,8 @@ export default function DashboardPage() {
 
       const plan = await response.json();
 
-      // Calculate week dates
-      const today = new Date();
-      const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay());
+      // Use selected week dates
+      const weekStart = new Date(selectedWeekStart);
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekStart.getDate() + 6);
 
@@ -589,9 +630,7 @@ export default function DashboardPage() {
       }
 
       const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const today = new Date();
-      const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay());
+      const weekStart = new Date(selectedWeekStart);
 
       // Process each meal in editedMeals
       for (const meal of editedMeals.meals) {
@@ -685,6 +724,17 @@ export default function DashboardPage() {
           editMode={editMode}
         />
 
+        {/* Week Navigator */}
+        <WeekNavigator
+          weekStartDate={selectedWeekStart}
+          onPrevWeek={goToPreviousWeek}
+          onNextWeek={goToNextWeek}
+          canGoPrev={weekOffset > -4}
+          canGoNext={weekOffset < 1}
+          isCurrentWeek={isCurrentWeek}
+          isFutureWeek={isFutureWeek}
+        />
+
         {/* Weekly Meal Grid */}
         <WeeklyMealGrid
           mealPlan={mealPlan}
@@ -694,10 +744,11 @@ export default function DashboardPage() {
           editedMeals={editedMeals}
           savedRecipes={savedRecipes}
           onMealChange={handleMealChange}
+          isCurrentWeek={isCurrentWeek}
         />
 
-        {/* Week Expired Notice */}
-        {currentWeekExpired && mealPlan && (
+        {/* Week Expired Notice - only show when viewing current week */}
+        {currentWeekExpired && mealPlan && isCurrentWeek && (
           <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
             <div className="flex items-start gap-3">
               <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -706,7 +757,7 @@ export default function DashboardPage() {
               <div className="flex-1">
                 <h4 className="font-semibold text-amber-900 mb-1">This week&apos;s plan has expired</h4>
                 <p className="text-sm text-amber-800">
-                  Your meal plan is now in your history. Click &quot;Generate Plan&quot; to plan for next week.
+                  Your meal plan is now in your history. Use the arrows to navigate to next week and generate a new plan.
                 </p>
               </div>
             </div>

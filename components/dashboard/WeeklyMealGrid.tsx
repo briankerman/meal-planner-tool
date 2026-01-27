@@ -23,6 +23,7 @@ interface WeeklyMealGridProps {
   editedMeals?: { meals: Meal[] } | null;
   savedRecipes?: SavedRecipe[];
   onMealChange?: (day: string, mealType: string, meal: Meal | null) => void;
+  isCurrentWeek?: boolean;
 }
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -35,9 +36,10 @@ export default function WeeklyMealGrid({
   editedMeals,
   savedRecipes = [],
   onMealChange,
+  isCurrentWeek = true,
 }: WeeklyMealGridProps) {
   const today = new Date();
-  const todayName = DAYS_OF_WEEK[today.getDay()];
+  const todayName = isCurrentWeek ? DAYS_OF_WEEK[today.getDay()] : null;
 
   // In edit mode, use editedMeals if available, otherwise fall back to mealPlan
   const activePlan = editMode && editedMeals ? editedMeals : mealPlan;
@@ -70,7 +72,7 @@ export default function WeeklyMealGrid({
           meals={getMealsForDay(day)}
           onMealClick={onMealClick}
           regeneratingDay={regeneratingDay}
-          isToday={day === todayName}
+          isToday={isCurrentWeek && day === todayName}
           editMode={editMode}
           savedRecipes={savedRecipes}
           onMealChange={onMealChange}
