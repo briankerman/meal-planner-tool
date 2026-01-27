@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       pin.media?.images?.['1200x']?.url ||
       null;
 
-    // If pin has a link, try to extract recipe details using AI
+    // Start with basic pin data
     let recipeData = {
       name: pin.title || 'Untitled Recipe',
       description: pin.description || null,
@@ -38,31 +38,67 @@ export async function POST(request: NextRequest) {
       image_url: imageUrl,
     };
 
+    let extractionSucceeded = false;
+
+    // Try to fetch and extract from the linked page
     if (pin.link) {
       try {
-        // Fetch the recipe page content
         const pageResponse = await fetch(pin.link, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; SimplerSundays/1.0)',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Cache-Control': 'no-cache',
           },
+          redirect: 'follow',
         });
 
         if (pageResponse.ok) {
           const html = await pageResponse.text();
 
-          // Use AI to extract recipe data from the page
-          const extraction = await extractRecipeWithAI(html, pin.title, pin.description);
-          if (extraction) {
+          // First try to find JSON-LD structured data (most recipe sites have this)
+          const jsonLdRecipe = extractJsonLdRecipe(html);
+          if (jsonLdRecipe) {
             recipeData = {
               ...recipeData,
-              ...extraction,
-              tags: [...(extraction.tags || []), 'pinterest'],
+              ...jsonLdRecipe,
+              tags: [...(jsonLdRecipe.tags || []), 'pinterest'],
             };
+            extractionSucceeded = true;
+          } else {
+            // Fall back to AI extraction from HTML
+            const extraction = await extractRecipeWithAI(html, pin.title, pin.description);
+            if (extraction && extraction.ingredients && extraction.ingredients.length > 0) {
+              recipeData = {
+                ...recipeData,
+                ...extraction,
+                tags: [...(extraction.tags || []), 'pinterest'],
+              };
+              extractionSucceeded = true;
+            }
           }
         }
       } catch (fetchError) {
         console.error('Error fetching recipe page:', fetchError);
-        // Continue with basic pin data
+      }
+    }
+
+    // If page extraction failed, try to generate recipe from pin description using AI
+    if (!extractionSucceeded && pin.description) {
+      try {
+        const generatedRecipe = await generateRecipeFromDescription(
+          pin.title || 'Recipe',
+          pin.description
+        );
+        if (generatedRecipe && generatedRecipe.ingredients && generatedRecipe.ingredients.length > 0) {
+          recipeData = {
+            ...recipeData,
+            ...generatedRecipe,
+            tags: [...(generatedRecipe.tags || []), 'pinterest', 'ai-generated'],
+          };
+        }
+      } catch (genError) {
+        console.error('Error generating recipe:', genError);
       }
     }
 
@@ -112,6 +148,127 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Extract recipe from JSON-LD structured data (Schema.org Recipe format)
+function extractJsonLdRecipe(html: string): {
+  name: string;
+  description: string | null;
+  ingredients: any[];
+  instructions: string[];
+  prep_time_minutes: number | null;
+  cook_time_minutes: number | null;
+  tags: string[];
+} | null {
+  try {
+    // Find all JSON-LD scripts
+    const jsonLdMatches = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+    if (!jsonLdMatches) return null;
+
+    for (const match of jsonLdMatches) {
+      const jsonContent = match.replace(/<script[^>]*>|<\/script>/gi, '').trim();
+      try {
+        const data = JSON.parse(jsonContent);
+
+        // Handle @graph format
+        const recipes = data['@graph']
+          ? data['@graph'].filter((item: any) => item['@type'] === 'Recipe')
+          : [data];
+
+        const recipe = recipes.find((r: any) => r['@type'] === 'Recipe');
+        if (!recipe) continue;
+
+        // Parse ingredients
+        const ingredients = (recipe.recipeIngredient || []).map((ing: string) => {
+          const parsed = parseIngredient(ing);
+          return parsed;
+        });
+
+        // Parse instructions
+        let instructions: string[] = [];
+        if (recipe.recipeInstructions) {
+          if (Array.isArray(recipe.recipeInstructions)) {
+            instructions = recipe.recipeInstructions.map((inst: any) => {
+              if (typeof inst === 'string') return inst;
+              if (inst.text) return inst.text;
+              if (inst.itemListElement) {
+                return inst.itemListElement.map((i: any) => i.text || i).join(' ');
+              }
+              return '';
+            }).filter(Boolean);
+          } else if (typeof recipe.recipeInstructions === 'string') {
+            instructions = recipe.recipeInstructions.split(/\n+/).filter(Boolean);
+          }
+        }
+
+        // Parse times (ISO 8601 duration format: PT30M, PT1H30M)
+        const prepTime = parseDuration(recipe.prepTime);
+        const cookTime = parseDuration(recipe.cookTime);
+
+        // Get tags from keywords or category
+        const tags: string[] = [];
+        if (recipe.keywords) {
+          const keywords = typeof recipe.keywords === 'string'
+            ? recipe.keywords.split(',').map((k: string) => k.trim())
+            : recipe.keywords;
+          tags.push(...keywords.slice(0, 5));
+        }
+        if (recipe.recipeCategory) {
+          tags.push(recipe.recipeCategory);
+        }
+        if (recipe.recipeCuisine) {
+          tags.push(recipe.recipeCuisine);
+        }
+
+        return {
+          name: recipe.name || 'Recipe',
+          description: recipe.description || null,
+          ingredients,
+          instructions,
+          prep_time_minutes: prepTime,
+          cook_time_minutes: cookTime,
+          tags: [...new Set(tags)].slice(0, 8),
+        };
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Parse ingredient string into structured format
+function parseIngredient(ingredientStr: string): { name: string; amount: string; unit: string } {
+  const str = ingredientStr.trim();
+
+  // Common patterns: "2 cups flour", "1/2 tsp salt", "3 large eggs"
+  const match = str.match(/^([\d\/\.\s]+)?\s*(cups?|tbsp?|tsp?|tablespoons?|teaspoons?|oz|ounces?|lbs?|pounds?|g|grams?|kg|ml|liters?|pieces?|cloves?|cans?|packages?|large|medium|small)?\s*(.+)$/i);
+
+  if (match) {
+    return {
+      amount: (match[1] || '').trim(),
+      unit: (match[2] || '').trim(),
+      name: (match[3] || str).trim(),
+    };
+  }
+
+  return { amount: '', unit: '', name: str };
+}
+
+// Parse ISO 8601 duration to minutes
+function parseDuration(duration: string | undefined): number | null {
+  if (!duration) return null;
+
+  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
+  if (!match) return null;
+
+  const hours = parseInt(match[1] || '0', 10);
+  const minutes = parseInt(match[2] || '0', 10);
+
+  return hours * 60 + minutes || null;
+}
+
+// AI extraction from HTML
 async function extractRecipeWithAI(
   html: string,
   pinTitle: string | null,
@@ -126,8 +283,20 @@ async function extractRecipeWithAI(
   tags: string[];
 } | null> {
   try {
-    // Truncate HTML to avoid token limits
-    const truncatedHtml = html.slice(0, 30000);
+    // Strip scripts, styles, and reduce HTML
+    let cleanHtml = html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+      .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+      .replace(/<header[\s\S]*?<\/header>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Truncate to reasonable size
+    cleanHtml = cleanHtml.slice(0, 15000);
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -135,23 +304,23 @@ async function extractRecipeWithAI(
       messages: [
         {
           role: 'user',
-          content: `Extract recipe information from this webpage HTML. The pin title is "${pinTitle || 'Unknown'}" and description is "${pinDescription || 'None'}".
+          content: `Extract recipe information from this webpage text. The pin title is "${pinTitle || 'Unknown'}" and description is "${pinDescription || 'None'}".
 
 Return a JSON object with:
 - name: recipe name (string)
-- description: brief description (string or null)
+- description: brief 1-2 sentence description (string or null)
 - ingredients: array of objects with {name, amount, unit}
 - instructions: array of step strings
 - prep_time_minutes: number or null
 - cook_time_minutes: number or null
-- tags: array of relevant tags like cuisine type, dietary info, etc.
+- tags: array of relevant tags (cuisine type, dietary info, etc.)
 
-If you can't find recipe information, return null.
+If you cannot find recipe information, return null.
 
-HTML content:
-${truncatedHtml}
+Page text:
+${cleanHtml}
 
-Respond with only valid JSON, no markdown or explanation.`,
+Respond with only valid JSON, no markdown.`,
         },
       ],
     });
@@ -159,11 +328,63 @@ Respond with only valid JSON, no markdown or explanation.`,
     const content = message.content[0];
     if (content.type !== 'text') return null;
 
-    // Parse the JSON response
-    const result = JSON.parse(content.text);
-    return result;
+    const text = content.text.trim();
+    if (text === 'null' || text === '') return null;
+
+    return JSON.parse(text);
   } catch (error) {
     console.error('AI extraction error:', error);
+    return null;
+  }
+}
+
+// Generate recipe from pin description when page extraction fails
+async function generateRecipeFromDescription(
+  title: string,
+  description: string
+): Promise<{
+  name: string;
+  description: string | null;
+  ingredients: any[];
+  instructions: string[];
+  prep_time_minutes: number | null;
+  cook_time_minutes: number | null;
+  tags: string[];
+} | null> {
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [
+        {
+          role: 'user',
+          content: `Based on this Pinterest pin title and description, generate a complete recipe.
+
+Title: ${title}
+Description: ${description}
+
+Return a JSON object with:
+- name: recipe name (string)
+- description: brief 1-2 sentence description (string)
+- ingredients: array of objects with {name, amount, unit} - include all typical ingredients for this dish
+- instructions: array of step strings - clear cooking instructions
+- prep_time_minutes: estimated prep time (number)
+- cook_time_minutes: estimated cook time (number)
+- tags: array of relevant tags (cuisine type, dietary info, etc.)
+
+Generate a realistic, cookable recipe based on the dish described.
+
+Respond with only valid JSON, no markdown.`,
+        },
+      ],
+    });
+
+    const content = message.content[0];
+    if (content.type !== 'text') return null;
+
+    return JSON.parse(content.text.trim());
+  } catch (error) {
+    console.error('Recipe generation error:', error);
     return null;
   }
 }
