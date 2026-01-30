@@ -1,26 +1,10 @@
 import Link from 'next/link';
+import Header from '@/components/marketing/Header';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      {/* Header */}
-      <header className="py-4 px-4">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex items-center">
-            <img
-              src="/images/simplersundayswordmark.png"
-              alt="Simpler Sundays Logo"
-              className="h-16 w-auto"
-            />
-          </div>
-          <Link
-            href="/login"
-            className="text-blue-600 hover:text-blue-700 font-medium"
-          >
-            Sign in
-          </Link>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gradient-to-b from-simpler-green-50 to-white">
+      <Header />
 
       {/* Hero Section with Image */}
       <div className="relative w-full h-[400px] sm:h-[500px] mb-16">
@@ -40,7 +24,7 @@ export default function Home() {
             </p>
             <Link
               href="/onboarding"
-              className="inline-block px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition text-lg shadow-lg"
+              className="inline-block px-8 py-4 bg-simpler-green-600 text-white font-semibold rounded-lg hover:bg-simpler-green-700 transition text-lg shadow-lg"
             >
               Get Started Free
             </Link>
@@ -90,7 +74,7 @@ export default function Home() {
           </h3>
           <div className="grid md:grid-cols-4 gap-6">
             <div className="text-center">
-              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
+              <div className="w-12 h-12 bg-simpler-green-100 text-simpler-green-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
                 1
               </div>
               <h4 className="font-semibold text-gray-900 mb-2">Tell us about you</h4>
@@ -100,7 +84,7 @@ export default function Home() {
             </div>
 
             <div className="text-center">
-              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
+              <div className="w-12 h-12 bg-simpler-green-100 text-simpler-green-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
                 2
               </div>
               <h4 className="font-semibold text-gray-900 mb-2">Generate your plan</h4>
@@ -110,7 +94,7 @@ export default function Home() {
             </div>
 
             <div className="text-center">
-              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
+              <div className="w-12 h-12 bg-simpler-green-100 text-simpler-green-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
                 3
               </div>
               <h4 className="font-semibold text-gray-900 mb-2">Shop & cook</h4>
@@ -120,7 +104,7 @@ export default function Home() {
             </div>
 
             <div className="text-center">
-              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
+              <div className="w-12 h-12 bg-simpler-green-100 text-simpler-green-600 rounded-full flex items-center justify-center mx-auto mb-3 font-bold text-lg">
                 4
               </div>
               <h4 className="font-semibold text-gray-900 mb-2">Refine & repeat</h4>
@@ -133,7 +117,7 @@ export default function Home() {
           <div className="text-center mt-8">
             <Link
               href="/signup"
-              className="inline-block px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+              className="inline-block px-6 py-3 bg-simpler-green-600 text-white font-semibold rounded-lg hover:bg-simpler-green-700 transition"
             >
               Start Planning
             </Link>
