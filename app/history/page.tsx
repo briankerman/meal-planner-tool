@@ -131,7 +131,9 @@ export default function HistoryPage() {
     }
   }
 
-  function handleSignOut() {
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
     localStorage.removeItem('meal_planner_preferences');
     router.push('/');
   }
