@@ -100,7 +100,7 @@ export default function CookbookPage() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar onSignOut={handleSignOut} />
 
-      <main className="flex-1 ml-64 p-8">
+      <main className="flex-1 ml-0 lg:ml-64 p-4 pt-16 lg:pt-8 lg:p-8">
         <div className="max-w-6xl">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-bold text-gray-900">My Cookbook</h1>

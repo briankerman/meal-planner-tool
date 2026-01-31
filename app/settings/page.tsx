@@ -207,7 +207,7 @@ function SettingsContent() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar onSignOut={handleSignOut} />
 
-      <main className="flex-1 ml-64 p-8">
+      <main className="flex-1 ml-0 lg:ml-64 p-4 pt-16 lg:pt-8 lg:p-8">
         <div className="max-w-3xl">
           <div className="bg-white rounded-lg shadow-sm p-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
